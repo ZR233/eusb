@@ -1,0 +1,30 @@
+[package]
+name = "libusb-src"
+version = "1.0.26"
+edition = "2021"
+
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+include = [
+    "/libusb/libusb",
+    "/libusb/msvc",
+    "/src/*",
+    "/tests",
+    "build.rs",
+    "Cargo.toml",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md",
+    "COPYING",
+    "AUTHORS",
+]
+
+build = "build.rs"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+cc = { version = "1.0", features = ["parallel"] }
+bindgen = "0.66"
+regex = "1.9"
