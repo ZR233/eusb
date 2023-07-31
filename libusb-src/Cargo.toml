@@ -1,6 +1,6 @@
 [package]
 name = "libusb-src"
-version = "1.26.0"
+version = "1.26.1"
 edition = "2021"
 authors = ["zhour rui <zrufo747@outlook.com>"]
 description = "FFI bindings for libusb. Can be easily cross compiled."

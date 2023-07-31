@@ -22,9 +22,7 @@ fn main(){
         let mut list = std::mem::MaybeUninit::<*const *mut ffi::libusb_device>::uninit();
         let list_size = ffi::libusb_get_device_list(context.assume_init(), list.as_mut_ptr());
         if list_size < 0  {
-            panic!("Failed to get device list {} {:p}", -list_size, unsafe {
-                list.assume_init()
-            });
+            panic!("Failed to get device list {} {:p}", -list_size, list.assume_init());
         }else { 
             println!("Usb device count: {}", list_size);
         }
@@ -37,4 +35,4 @@ fn main(){
 
 # Cross Compile
 
-support windows linux and android, not test on ios and mac.
+support windows linux and android, ios and mac in plan.
