@@ -1,9 +1,9 @@
 [package]
 name = "libusb-src"
-version = "1.0.26"
+version = "1.26.0"
 edition = "2021"
 authors = ["zhour rui <zrufo747@outlook.com>"]
-description = "FFI bindings for libusb. Can be easily cross compiled。"
+description = "FFI bindings for libusb. Can be easily cross compiled."
 license = "MIT"
 homepage = "https://github.com/ZR233/eusb"
 repository = "https://github.com/ZR233/eusb.git"

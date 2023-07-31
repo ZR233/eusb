@@ -29,7 +29,7 @@ fn main(){
     for file in src_files.iter() {
         c.file(libusb_src.join(file));
     }
-    let mut src_os_files:Vec<&str>;
+    let mut src_os_files:Vec<&str>=vec![];
 
     #[cfg(target_family = "unix")]
     {
@@ -95,7 +95,7 @@ fn main(){
 }
 
 fn get_libusb_version_one(src: &str, e: &str)->i32{
-    let res = format!(r"#define LIBUSB_{} (\d+)\n#endif", e);
+    let res = format!(r"#define LIBUSB_{} (\d+)(\s+)#endif", e);
     let re = Regex::new(&res).unwrap();
     let caps = re.captures(&src).unwrap();
     let version = caps.get(1).unwrap().as_str();
@@ -104,7 +104,8 @@ fn get_libusb_version_one(src: &str, e: &str)->i32{
 fn get_libusb_version(libusb_src: &PathBuf)->String{
     let mut f = fs::File::open(libusb_src.join("version.h")).unwrap();
     let mut h_str = String::new();
-    let _ = f.read_to_string(&mut h_str).unwrap();
+    let n = f.read_to_string(&mut h_str).unwrap();
+
 
     let v1 = get_libusb_version_one(&h_str, "MAJOR");
     let v2 = get_libusb_version_one(&h_str, "MINOR");

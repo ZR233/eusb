@@ -3,7 +3,6 @@ use std::fmt::{Display, Formatter, Pointer};
 use std::ptr::null_mut;
 use std::sync::Mutex;
 use libusb_src::*;
-use libusb_src::constants::*;
 use crate::error::*;
 use crate::interface::Interface;
 

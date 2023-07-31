@@ -1,8 +1,7 @@
 #![allow(non_camel_case_types)]
 
-pub mod constants;
-
-use self::constants::*;
+mod constants;
+pub use self::constants::*;
 use libc::{c_char, c_int, c_short, c_uchar, c_uint, c_void, ssize_t, timeval};
 
 #[repr(C)]

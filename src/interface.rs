@@ -3,7 +3,7 @@ use std::ptr::null_mut;
 use libusb_src::*;
 use crate::error::*;
 use futures::channel::oneshot::*;
-use libusb_src::constants::*;
+use libusb_src::*;
 
 pub struct  Interface{
     number: c_int,

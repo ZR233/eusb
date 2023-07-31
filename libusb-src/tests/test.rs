@@ -58,23 +58,23 @@ fn test_get_device_list() {
 
 #[test]
 fn test_fill_control_setup() {
-    let mut buf = [0u8; ffi::constants::LIBUSB_CONTROL_SETUP_SIZE + 1];
+    let mut buf = [0u8; ffi::LIBUSB_CONTROL_SETUP_SIZE + 1];
     unsafe {
         ffi::libusb_fill_control_setup(
             buf.as_mut_ptr(),
-            ffi::constants::LIBUSB_REQUEST_TYPE_VENDOR | ffi::constants::LIBUSB_ENDPOINT_OUT,
+            ffi::LIBUSB_REQUEST_TYPE_VENDOR | ffi::LIBUSB_ENDPOINT_OUT,
             0x04,
             0x4e,
             0,
-            (buf.len() - ffi::constants::LIBUSB_CONTROL_SETUP_SIZE) as u16,
+            (buf.len() - ffi::LIBUSB_CONTROL_SETUP_SIZE) as u16,
         );
     }
-    buf[ffi::constants::LIBUSB_CONTROL_SETUP_SIZE] = 0x01;
+    buf[ffi::LIBUSB_CONTROL_SETUP_SIZE] = 0x01;
     let setup: *mut ffi::libusb_control_setup = buf.as_mut_ptr() as *mut _;
 
     assert_eq!(
         unsafe { (*setup).bmRequestType },
-        ffi::constants::LIBUSB_REQUEST_TYPE_VENDOR | ffi::constants::LIBUSB_ENDPOINT_OUT
+        ffi::LIBUSB_REQUEST_TYPE_VENDOR | ffi::LIBUSB_ENDPOINT_OUT
     );
     assert_eq!(unsafe { (*setup).bRequest }, 0x04);
     assert_eq!(unsafe { u16::from_le((*setup).wValue) }, 0x4e);
@@ -86,18 +86,18 @@ fn test_fill_control_setup() {
 fn test_fill_control_transfer() {
     extern "system" fn callback(_transfer: *mut ffi::libusb_transfer) {}
 
-    let mut buf = [0u8; ffi::constants::LIBUSB_CONTROL_SETUP_SIZE + 1];
+    let mut buf = [0u8; ffi::LIBUSB_CONTROL_SETUP_SIZE + 1];
     unsafe {
         ffi::libusb_fill_control_setup(
             buf.as_mut_ptr(),
-            ffi::constants::LIBUSB_REQUEST_TYPE_VENDOR | ffi::constants::LIBUSB_ENDPOINT_OUT,
+            ffi::LIBUSB_REQUEST_TYPE_VENDOR | ffi::LIBUSB_ENDPOINT_OUT,
             0x04,
             0x4e,
             0,
-            (buf.len() - ffi::constants::LIBUSB_CONTROL_SETUP_SIZE) as u16,
+            (buf.len() - ffi::LIBUSB_CONTROL_SETUP_SIZE) as u16,
         );
     }
-    buf[ffi::constants::LIBUSB_CONTROL_SETUP_SIZE] = 0x05;
+    buf[ffi::LIBUSB_CONTROL_SETUP_SIZE] = 0x05;
 
     let mut transfer = std::mem::MaybeUninit::<ffi::libusb_transfer>::uninit();
 
@@ -115,12 +115,12 @@ fn test_fill_control_transfer() {
     assert_eq!(transfer.endpoint, 0);
     assert_eq!(
         transfer.length as usize,
-        ffi::constants::LIBUSB_CONTROL_SETUP_SIZE + 1
+        ffi::LIBUSB_CONTROL_SETUP_SIZE + 1
     );
     assert_eq!(transfer.timeout, 1000);
     assert_eq!(
         transfer.transfer_type,
-        ffi::constants::LIBUSB_TRANSFER_TYPE_CONTROL
+        ffi::LIBUSB_TRANSFER_TYPE_CONTROL
     );
     assert_eq!(transfer.buffer, buf.as_mut_ptr());
 
@@ -153,7 +153,7 @@ fn test_fill_bulk_transfer() {
     assert_eq!(transfer.timeout, 1000);
     assert_eq!(
         transfer.transfer_type,
-        ffi::constants::LIBUSB_TRANSFER_TYPE_BULK
+        ffi::LIBUSB_TRANSFER_TYPE_BULK
     );
     assert_eq!(transfer.buffer, buf.as_mut_ptr());
     assert_eq!(transfer.length, buf.len() as libc::c_int);

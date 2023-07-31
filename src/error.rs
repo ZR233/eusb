@@ -1,4 +1,4 @@
-use libusb_src::constants::*;
+use libusb_src::*;
 use std::{result, fmt};
 use std::ffi::c_int;
 
