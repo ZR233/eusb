@@ -35,4 +35,4 @@ fn main(){
 
 # Cross Compile
 
-support windows linux and android, ios and mac in plan.
+support windows linux and android, not test ios and mac.

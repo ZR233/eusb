@@ -31,8 +31,7 @@ fn main(){
     }
     let mut src_os_files:Vec<&str>=vec![];
 
-    #[cfg(target_family = "unix")]
-    {
+    if env::var("CARGO_CFG_TARGET_FAMILY") == Ok("unix".into()) {
         src_os_files=vec![
             "events_posix.c",
             "threads_posix.c",
@@ -41,8 +40,23 @@ fn main(){
         if env::var("CARGO_CFG_TARGET_OS") == Ok("linux".into())
             || env::var("CARGO_CFG_TARGET_OS") == Ok("android".into())
         {
+            c.define("OS_LINUX", Some("1"));
+            // c.define("HAVE_ASM_TYPES_H", Some("1"));
+            c.define("_GNU_SOURCE", Some("1"));
+            c.define("HAVE_TIMERFD", Some("1"));
+            c.define("HAVE_EVENTFD", Some("1"));
             src_os_files.push("linux_netlink.c");
             src_os_files.push("linux_usbfs.c");
+        }
+
+        if env::var("CARGO_CFG_TARGET_OS") == Ok("macos".into()) {
+            c.define("OS_DARWIN", Some("1"));
+            c.define("TARGET_OS_OSX", Some("1"));
+            c.file(src_os_files.join("darwin_usb.c"));
+            println!("cargo:rustc-link-lib=framework=CoreFoundation");
+            println!("cargo:rustc-link-lib=framework=IOKit");
+            println!("cargo:rustc-link-lib=framework=Security");
+            println!("cargo:rustc-link-lib=objc");
         }
     }
     if env::var("CARGO_CFG_TARGET_OS") == Ok("windows".into()) {
@@ -59,7 +73,7 @@ fn main(){
             "windows_winusb.c",
         ];
 
-        #[cfg(not(target_env = "msvc"))]
+        if env::var("CARGO_CFG_TARGET_ENV") != Ok("msvc".into())
         {
             c.define("DEFAULT_VISIBILITY", Some(""));
             c.define("PLATFORM_WINDOWS", Some("1"));
@@ -104,7 +118,7 @@ fn get_libusb_version_one(src: &str, e: &str)->i32{
 fn get_libusb_version(libusb_src: &PathBuf)->String{
     let mut f = fs::File::open(libusb_src.join("version.h")).unwrap();
     let mut h_str = String::new();
-    let n = f.read_to_string(&mut h_str).unwrap();
+    let _ = f.read_to_string(&mut h_str).unwrap();
 
 
     let v1 = get_libusb_version_one(&h_str, "MAJOR");
@@ -113,6 +127,8 @@ fn get_libusb_version(libusb_src: &PathBuf)->String{
 
     format!("{}.{}.{}", v1, v2, v3)
 }
+
+#[allow(unused)]
 struct Params<'a>{
     c: &'a mut cc::Build,
     root: &'a PathBuf,
@@ -183,8 +199,6 @@ const CONFIG_H_UNIX_CONTENT: &str = r#"
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
 
-/* Define to 1 if the system has eventfd functionality. */
-#define HAVE_EVENTFD 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -241,9 +255,6 @@ const CONFIG_H_UNIX_CONTENT: &str = r#"
 /* Define to 1 if you have the <sys/types.h> header file. */
 #define HAVE_SYS_TYPES_H 1
 
-/* Define to 1 if the system has timerfd functionality. */
-#define HAVE_TIMERFD 1
-
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
 
@@ -285,10 +296,6 @@ const CONFIG_H_UNIX_CONTENT: &str = r#"
 
 /* Define to 1 to output logging messages to the systemwide log. */
 /* #undef USE_SYSTEM_LOGGING_FACILITY */
-
-
-/* Enable GNU extensions. */
-#define _GNU_SOURCE 1
 
 /* Define to the oldest supported Windows version. */
 /* #undef _WIN32_WINNT */
