@@ -124,13 +124,13 @@ struct Params<'a>{
 fn gen_config_h(params: &mut Params){
     if env::var("CARGO_CFG_TARGET_ENV") == Ok("msvc".into()) {
         fs::copy(
-            params.libusb_src_dir.join("msvc").join("config.h"),
+            params.root.join("libusb").join("msvc").join("config.h"),
             params.config_dir.join("config.h"),
         )
             .unwrap();
     }else if  env::var("CARGO_CFG_TARGET_OS") == Ok("android".into()){
         fs::copy(
-            params.libusb_src_dir.join("android").join("config.h"),
+            params.root.join("libusb").join("android").join("config.h"),
             params.config_dir.join("config.h"),
         )
             .unwrap();

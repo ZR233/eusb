@@ -519,7 +519,7 @@ pub unsafe fn libusb_get_descriptor(
 
 #[inline]
 pub unsafe fn libusb_control_transfer_get_data(transfer: *mut libusb_transfer) -> *mut c_uchar {
-    (*transfer).buffer.add(constants::LIBUSB_CONTROL_SETUP_SIZE)
+    (*transfer).buffer.add(LIBUSB_CONTROL_SETUP_SIZE)
 }
 
 #[inline]
@@ -565,7 +565,7 @@ pub unsafe fn libusb_fill_control_transfer(
     (*transfer).buffer = buffer;
     if !buffer.is_null() {
         (*transfer).length =
-            (constants::LIBUSB_CONTROL_SETUP_SIZE as u16 + u16::from_le((*setup).wLength)).into();
+            (LIBUSB_CONTROL_SETUP_SIZE as u16 + u16::from_le((*setup).wLength)).into();
     }
     (*transfer).user_data = user_data;
     (*transfer).callback = callback;
