@@ -2,7 +2,13 @@
 name = "libusb-src"
 version = "1.0.26"
 edition = "2021"
-
+authors = ["zhour rui <zrufo747@outlook.com>"]
+description = "FFI bindings for libusb. Can be easily cross compiled。"
+license = "MIT"
+homepage = "https://github.com/ZR233/eusb"
+repository = "https://github.com/ZR233/eusb.git"
+readme = "README.md"
+keywords = ["usb", "libusb", "hardware", "bindings"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 include = [
