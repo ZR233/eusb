@@ -20,3 +20,4 @@ members = ["libusb-src"]
 
 [dependencies]
 libusb-src = {path = "libusb-src"}
+thiserror = "1.0"

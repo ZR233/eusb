@@ -32,6 +32,7 @@ pub struct libusb_version {
 
 #[allow(non_snake_case)]
 #[repr(C)]
+#[derive(Default)]
 pub struct libusb_device_descriptor {
     pub bLength: u8,
     pub bDescriptorType: u8,
