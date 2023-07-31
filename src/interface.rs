@@ -1,5 +1,4 @@
 use std::ffi::{c_int, c_uchar};
-use std::ptr::null_mut;
 use libusb_src::*;
 use crate::error::*;
 use futures::channel::oneshot::*;
@@ -8,7 +7,6 @@ use libusb_src::*;
 pub struct  Interface{
     number: c_int,
     dev_handle: *mut libusb_device_handle,
-
 }
 
 unsafe impl Send for Interface{}
@@ -16,11 +14,9 @@ unsafe impl Sync for Interface{}
 
 extern "system" fn libusb_transfer_cb_fn_callback(data: *mut libusb_transfer){
     unsafe {
-        let ptr = (*data).user_data as *mut Sender<Transfer>;
+        let ptr = (*data).user_data as *mut Sender<*mut libusb_transfer>;
         let tx = Box::from_raw(ptr);
-        let _ = tx.send(Transfer{
-            handle: data,
-        });
+        let _ = tx.send(data);
     }
 }
 
@@ -41,8 +37,7 @@ impl Interface {
 
     pub async fn control_transfer(&self, )->Result<()>{
         let mut transfer = Transfer::new(0)?;
-        let (tx, rx) = channel::<Transfer>();
-
+        let (tx, rx) = channel::<*mut libusb_transfer>();
 
         unsafe {
 
@@ -70,7 +65,7 @@ impl Interface {
                 Error::Other
             })?;
 
-            check_err((*(r.handle)).status)
+            check_err((*r).status)
         }
 
 
@@ -107,3 +102,10 @@ impl Transfer {
     }
 }
 
+impl Drop for Transfer {
+    fn drop(&mut self) {
+        unsafe {
+            libusb_free_transfer(self.handle);
+        }
+    }
+}
