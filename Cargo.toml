@@ -21,3 +21,8 @@ members = ["libusb-src"]
 [dependencies]
 libusb-src = {path = "libusb-src"}
 thiserror = "1.0"
+lazy_static = "1.4"
+futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

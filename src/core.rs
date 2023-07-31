@@ -2,19 +2,25 @@
 use std::mem;
 use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use crate::error::*;
 use libusb_src::*;
 use crate::device::Device;
 
 
 pub struct UsbManager{
-    context:  *mut libusb_context
+    context:  *mut libusb_context,
+    is_event_thread_run: Arc<AtomicBool>
 }
 
 
 
 unsafe  impl Send for UsbManager{}
 unsafe impl Sync for UsbManager{}
+
+struct Context(*mut libusb_context);
+unsafe impl Send for Context{}
+
 
 impl UsbManager {
     pub fn new()->Result<Self>{
@@ -26,8 +32,26 @@ impl UsbManager {
             context.assume_init()
         };
 
+        let is_event_thread_run =Arc::new(AtomicBool::new(true));
+        {
+            let context = Context(context);
+            let is_event_thread_run = is_event_thread_run.clone();
+
+                std::thread::spawn(move || {
+                    unsafe {
+                        let ptr = context;
+                        while is_event_thread_run.load(Ordering::SeqCst) {
+                                libusb_handle_events(ptr.0);
+                        }
+                        println!("event_finish");
+                    }
+                });
+
+        }
+
         Ok(Self{
             context,
+            is_event_thread_run
         })
     }
 
@@ -64,6 +88,7 @@ impl UsbManager {
 
 impl Drop for UsbManager {
     fn drop(&mut self) {
+        self.is_event_thread_run.store(false, Ordering::SeqCst);
         unsafe {
             libusb_exit(self.context);
         }
@@ -108,6 +133,7 @@ impl Drop for DeviceList {
 
 #[cfg(test)]
 mod test{
+    use std::time::Duration;
     use crate::core::UsbManager;
 
     #[test]
@@ -127,4 +153,32 @@ mod test{
 
         println!("{} speed: {:?}", device, device.speed());
     }
+
+
+    #[tokio::test]
+    async fn test_interface() {
+        {
+            let manager = UsbManager::new().unwrap();
+            let mut device = manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap();
+
+            println!("{} speed: {:?}", device, device.speed());
+
+            // device.set_configuration(0x1).unwrap();
+            let config = device.get_configuration().unwrap();
+
+            println!("config: {}", config);
+
+            let interface = device.get_interface(0).unwrap();
+
+            interface.control_transfer().await.unwrap();
+
+
+        }
+
+
+        std::thread::sleep(Duration::from_secs(1));
+
+
+    }
+
 }
