@@ -1,18 +1,17 @@
 
 use std::mem;
-use std::ptr::{null_mut, slice_from_raw_parts};
+use std::ptr::{slice_from_raw_parts};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use crate::error::*;
 use libusb_src::*;
-use crate::device::Device;
+use crate::define::*;
+use crate::device::*;
 
 
 pub struct UsbManager{
     context:  *mut libusb_context,
-    is_event_thread_run: Arc<AtomicBool>
+    event_controller: Arc<EventController>
 }
-
 
 
 unsafe  impl Send for UsbManager{}
@@ -32,16 +31,32 @@ impl UsbManager {
             context.assume_init()
         };
 
-        let is_event_thread_run =Arc::new(AtomicBool::new(true));
+        let event_controller =Arc::new(EventController::new());
         {
             let context = Context(context);
-            let is_event_thread_run = is_event_thread_run.clone();
+            let event_controller = event_controller.clone();
 
                 std::thread::spawn(move || {
+                    let ptr = context;
+                    let controller = event_controller;
+
                     unsafe {
-                        let ptr = context;
-                        while is_event_thread_run.load(Ordering::SeqCst) {
+                        loop {
+                            let c = {
+                                controller.ctx.lock().unwrap().clone()
+                            };
+                            if c.is_exit {
+                                break;
+                            }
+                            if c.device_count>0 {
                                 libusb_handle_events(ptr.0);
+                            }else{
+                                let _unused = controller.cond.wait(controller.ctx.lock().unwrap()).unwrap();
+                                drop(_unused);
+                            }
+                        }
+                        unsafe {
+                            libusb_exit(ptr.0);
                         }
                         println!("event_finish");
                     }
@@ -51,7 +66,7 @@ impl UsbManager {
 
         Ok(Self{
             context,
-            is_event_thread_run
+            event_controller
         })
     }
 
@@ -66,7 +81,8 @@ impl UsbManager {
             DeviceList{
                 ptr: devs_raw,
                 i: 0,
-                length: cnt as _
+                length: cnt as _,
+                event_controller: self.event_controller.clone()
             }
         };
 
@@ -88,17 +104,15 @@ impl UsbManager {
 
 impl Drop for UsbManager {
     fn drop(&mut self) {
-        self.is_event_thread_run.store(false, Ordering::SeqCst);
-        unsafe {
-            libusb_exit(self.context);
-        }
+        self.event_controller.exit();
     }
 }
 
 pub struct  DeviceList{
     ptr: *const *mut libusb_device,
     i: usize,
-    length: usize
+    length: usize,
+    event_controller: Arc<EventController>
 }
 
 impl Iterator for DeviceList{
@@ -113,7 +127,7 @@ impl Iterator for DeviceList{
                 return None;
             }
 
-            Device::new(dev)
+            Device::new(dev, self.event_controller.clone())
         };
 
         self.i+=1;

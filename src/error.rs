@@ -49,8 +49,8 @@ pub enum Error {
     Other,
 }
 
-pub(crate) fn check_err(r: c_int) -> Result<()> {
-    if r >= 0 { Ok(()) } else {
+pub(crate) fn check_err(r: c_int) -> Result<i32> {
+    if r >= 0 { Ok(r as _) } else {
         let e = match r {
             LIBUSB_ERROR_IO            => Error::Io("Usb".to_string()),
             LIBUSB_ERROR_INVALID_PARAM =>Error::InvalidParam,

@@ -1,5 +1,7 @@
+use std::sync::{Condvar, Mutex};
 use std::time::Duration;
 use futures::channel::oneshot::*;
+use log::debug;
 use libusb_src::*;
 use crate::error::*;
 
@@ -67,9 +69,50 @@ impl Default for ControlTransferRequest {
     }
 }
 
+pub(crate) struct EventController{
+    pub(crate) ctx: Mutex<EventControllerCtx>,
+    pub(crate) cond: Condvar,
+}
+#[derive(Clone)]
+pub(crate) struct EventControllerCtx{
+    pub(crate) device_count: usize,
+    pub(crate) is_exit: bool,
+}
+
+impl EventController {
+    pub(crate) fn new()->Self{
+        Self{
+            ctx: Mutex::new(EventControllerCtx{
+                device_count: 0,
+                is_exit: false,
+            }),
+            cond: Condvar::new()
+        }
+    }
+
+    pub fn open_device(&self){
+        let mut ctx = self.ctx.lock().unwrap();
+        (*ctx).device_count+=1;
+        self.cond.notify_all();
+    }
+
+    pub fn close_device(&self){
+        let mut ctx = self.ctx.lock().unwrap();
+        (*ctx).device_count-=1;
+        self.cond.notify_all();
+    }
+
+    pub fn exit(&self){
+        let mut ctx = self.ctx.lock().unwrap();
+        (*ctx).is_exit=true;
+        self.cond.notify_all();
+    }
+
+}
 
 
-pub(crate) extern "system" fn libusb_transfer_cb_fn_callback(data: *mut libusb_transfer){
+
+pub(crate) extern "system" fn libusb_transfer_cb_fn(data: *mut libusb_transfer){
     unsafe {
         let ptr = (*data).user_data as *mut Sender<*mut libusb_transfer>;
         let tx = Box::from_raw(ptr);

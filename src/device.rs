@@ -1,7 +1,8 @@
 use std::ffi::{c_char, c_int, c_uchar};
 use std::fmt::{Display, Formatter, Pointer};
 use std::ptr::null_mut;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use log::debug;
 use libusb_src::*;
 use crate::define::*;
 use crate::error::*;
@@ -11,6 +12,7 @@ use crate::interface::Interface;
 pub struct Device {
     pub(crate) dev: *mut libusb_device,
     pub(crate) handle: Mutex<*mut libusb_device_handle>,
+    event_controller: Arc<EventController>
 }
 
 #[derive(Debug)]
@@ -32,6 +34,7 @@ pub type Descriptor = libusb_device_descriptor;
 impl Device {
     pub(crate) fn new(
         dev: *mut libusb_device,
+        event_controller: Arc<EventController>
     ) -> Self {
         unsafe {
             libusb_ref_device(dev);
@@ -40,6 +43,7 @@ impl Device {
         Self {
             dev,
             handle: Mutex::new(null_mut()),
+            event_controller
         }
     }
     pub fn descriptor(&self) -> Descriptor {
@@ -82,6 +86,7 @@ impl Device {
                 libusb_set_auto_detach_kernel_driver(*g, 1);
             }
         }
+        self.event_controller.open_device();
         Ok(*g)
     }
 
@@ -170,7 +175,7 @@ impl Device {
                 transfer.handle,
                 self.get_handle()?,
                 buf_ptr,
-                libusb_transfer_cb_fn_callback,
+                libusb_transfer_cb_fn,
                 user_data as _,
                 request.timeout.as_millis() as _,
             );
@@ -209,7 +214,9 @@ impl Drop for Device {
             let mut handle = self.handle.lock().unwrap();
             if !handle.is_null() {
                 libusb_close(*handle);
+                self.event_controller.close_device();
             }
+            debug!("Device closed");
         }
     }
 }
