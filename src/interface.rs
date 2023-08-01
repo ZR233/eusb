@@ -56,10 +56,10 @@ impl Interface {
     )->Result<futures::channel::mpsc::Receiver<Vec<u8>>>{
         let (tx, rx) = futures::channel::mpsc::channel::<Vec<u8>>(option.channel_size);
         unsafe {
-            let bulk_cancel = Arc::new(BulkCancel::new()) ;
+            let bulk_cancel = Arc::new(BulkInCancel::new()) ;
 
             for _ in 0..option.request_size{
-                let mut callback_data = Box::new(Transfer::new(
+                let mut callback_data = Box::new(TransferIn::new(
                     tx.clone(),
                     request.package_len,
                     &bulk_cancel,
@@ -68,14 +68,13 @@ impl Interface {
                 let buff_ptr = callback_data.buff.as_mut_ptr();
                 let user_data = Box::into_raw(callback_data);
 
-
                 libusb_fill_bulk_transfer(
                     transfer,
                     self.dev_handle,
                     (request.endpoint as u32 | LIBUSB_ENDPOINT_IN as u32) as u8,
                     buff_ptr,
                     request.package_len as _,
-                    libusb_transfer_cb_fn_channel,
+                    libusb_transfer_cb_fn_channel_in,
                     user_data as _,
                     request.timeout.as_millis() as _
                 );
@@ -86,6 +85,20 @@ impl Interface {
             }
         }
         Ok(rx)
+    }
+
+
+    async fn bulk_out_batch(
+        &self,
+        request: BulkTransferRequest,
+        option: BulkChannelOption,
+        data: &[u8],
+    )->Result<usize>{
+        let mut send_size = 0;
+        let bulk = Arc::new(BulkOut::new());
+
+
+        Ok(send_size)
     }
 }
 
@@ -99,11 +112,11 @@ impl Drop for Interface {
 }
 struct TransferPtr(*mut libusb_transfer);
 unsafe impl Send for TransferPtr{}
-struct BulkCancel {
+struct BulkInCancel {
     transfers: Mutex<Vec<TransferPtr>>
 }
 
-impl BulkCancel {
+impl BulkInCancel {
     fn new()->Self{
         Self{
             transfers: Mutex::new(vec![])
@@ -124,20 +137,34 @@ impl BulkCancel {
     }
 }
 
+struct BulkOut{
+    transfers: Mutex<Vec<TransferPtr>>,
 
-struct Transfer {
+}
+
+impl BulkOut {
+    fn new()->Self{
+        Self{
+            transfers: Mutex::new(vec![])
+        }
+    }
+}
+
+
+
+struct TransferIn {
     buff: Vec<u8>,
     tx: futures::channel::mpsc::Sender<Vec<u8>>,
-    cancel: Arc<BulkCancel>,
+    cancel: Arc<BulkInCancel>,
     ptr: *mut libusb_transfer,
 }
 
-impl Transfer {
+impl TransferIn {
     fn new(
         tx: futures::channel::mpsc::Sender<Vec<u8>>,
         package_len: usize,
-        cancel: &Arc<BulkCancel>,
-    )->Result<Self>{
+        cancel: &Arc<BulkInCancel>,
+    ) ->Result<Self>{
         unsafe {
             let transfer = libusb_alloc_transfer(0);
             if transfer.is_null(){
@@ -155,7 +182,7 @@ impl Transfer {
     }
 }
 
-impl Drop for Transfer {
+impl Drop for TransferIn {
     fn drop(&mut self) {
         self.tx.close_channel();
         self.cancel.cancel();
@@ -165,10 +192,10 @@ impl Drop for Transfer {
     }
 }
 
-extern "system" fn libusb_transfer_cb_fn_channel(data: *mut libusb_transfer){
+extern "system" fn libusb_transfer_cb_fn_channel_in(data: *mut libusb_transfer){
     unsafe {
 
-        let data_ptr = (*data).user_data as *mut Transfer;
+        let data_ptr = (*data).user_data as *mut TransferIn;
 
         if (*data).status != LIBUSB_TRANSFER_COMPLETED {
             debug!("bulk transfer stop: {}", (*data).status);
