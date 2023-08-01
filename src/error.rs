@@ -6,8 +6,8 @@ pub type Result<T> = result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-    #[error("Input/output error.")]
-    Io,
+    #[error("Input/output error: {0}")]
+    Io(String),
 
     #[error("Invalid parameter")]
     InvalidParam,
@@ -42,6 +42,9 @@ pub enum Error {
     #[error("Operation not supported or unimplemented on this platform")]
     NotSupported,
 
+    #[error("Cancelled")]
+    Cancelled,
+
     #[error("**UNKNOWN**")]
     Other,
 }
@@ -49,7 +52,7 @@ pub enum Error {
 pub(crate) fn check_err(r: c_int) -> Result<()> {
     if r >= 0 { Ok(()) } else {
         let e = match r {
-            LIBUSB_ERROR_IO            => Error::Io,
+            LIBUSB_ERROR_IO            => Error::Io("Usb".to_string()),
             LIBUSB_ERROR_INVALID_PARAM =>Error::InvalidParam,
             LIBUSB_ERROR_ACCESS        =>Error::Access,
             LIBUSB_ERROR_NO_DEVICE     =>Error::NoDevice,

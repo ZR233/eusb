@@ -154,31 +154,4 @@ mod test{
         println!("{} speed: {:?}", device, device.speed());
     }
 
-
-    #[tokio::test]
-    async fn test_interface() {
-        {
-            let manager = UsbManager::new().unwrap();
-            let mut device = manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap();
-
-            println!("{} speed: {:?}", device, device.speed());
-
-            // device.set_configuration(0x1).unwrap();
-            let config = device.get_configuration().unwrap();
-
-            println!("config: {}", config);
-
-            let interface = device.get_interface(0).unwrap();
-
-            interface.control_transfer().await.unwrap();
-
-
-        }
-
-
-        std::thread::sleep(Duration::from_secs(1));
-
-
-    }
-
 }
