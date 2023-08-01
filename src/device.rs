@@ -122,7 +122,7 @@ impl Device {
         }
         Ok(data)
     }
-    async fn control_transfer_out(&self, request: ControlTransferRequest, data: &[u8])-> Result<()> {
+    pub async fn control_transfer_out(&self, request: ControlTransferRequest, data: &[u8])-> Result<()> {
         let mut buf = Vec::with_capacity(LIBUSB_CONTROL_SETUP_SIZE+ data.len());
         for _ in 0..LIBUSB_CONTROL_SETUP_SIZE {
             buf.push(0);
