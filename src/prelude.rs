@@ -26,7 +26,7 @@ mod test {
         let device = get_hackrf(&manager).await;
         debug!("sn: {}", device.serial_number());
         let device_descriptor = device.descriptor();
-        debug!("{:?}", device_descriptor);
+
         let configs = device.config_list().unwrap();
         for config in configs {
             debug!("{}", config);

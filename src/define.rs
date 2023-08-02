@@ -50,6 +50,7 @@ pub struct  ControlTransferRequest{
     pub timeout: Duration,
 }
 
+#[derive(PartialEq)]
 pub  enum EndpointDirection{
     In, Out
 }
@@ -127,4 +128,26 @@ impl DeviceDescriptor {
     pub fn id_vendor(&self)-> u16{ self.data.idVendor}
     pub fn id_product(&self)-> u16{ self.data.idProduct}
     pub fn num_configurations(&self)-> u8{ self.data.bNumConfigurations}
+}
+
+pub struct TransferCancelToken{
+    ptr: *mut libusb_transfer
+}
+unsafe impl Send for TransferCancelToken {}
+unsafe impl Sync for TransferCancelToken {}
+
+impl TransferCancelToken {
+    pub(crate) fn new(transfer: *mut libusb_transfer)->Self{
+        Self{
+            ptr: transfer
+        }
+    }
+
+    pub fn cancel(&self){
+        unsafe {
+            if !self.ptr.is_null(){
+                libusb_cancel_transfer(self.ptr);
+            }
+        }
+    }
 }

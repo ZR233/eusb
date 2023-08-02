@@ -51,55 +51,88 @@ impl Interface {
         })
     }
 
-    async fn bulk_transfer(
-        &self,
-        request: BulkTransferRequest,
-        direction: EndpointDirection,
-        buf: &mut [u8],
-        transfer_type: u8,
-    )->Result<usize>{
+    // async fn bulk_transfer(
+    //     &self,
+    //     request: BulkTransferRequest,
+    //     direction: EndpointDirection,
+    //     buf: &mut [u8],
+    //     transfer_type: u8,
+    // )->Result<usize>{
+    //     let mut transfer = Transfer::bulk(
+    //         &self,
+    //         request,
+    //         direction,
+    //         buf,
+    //     )?;
+    //     unsafe {
+    //         (*transfer.ptr).transfer_type = transfer_type;
+    //     }
+    //
+    //     let mut rx = transfer.set_complete_cb();
+    //
+    //     Transfer::submit(transfer)?;
+    //
+    //     let r = rx.next().await.ok_or(Error::NotFound
+    //     )??;
+    //
+    //     Ok(r.actual_length())
+    // }
+    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
         let mut transfer = Transfer::bulk(
-            &self,
-            request,
-            direction,
-            buf,
+            self,
+                request,
+                EndpointDirection::In,
+                &[],
+
         )?;
         unsafe {
-            (*transfer.ptr).transfer_type = transfer_type;
+            (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
+        let t2 = Transfer::submit_wait(transfer)?.await?;
 
-        let mut rx = transfer.set_complete_cb();
-
-        Transfer::submit(transfer)?;
-
-        let r = rx.next().await.ok_or(Error::NotFound
-        )??;
-
-        Ok(r.actual_length())
-    }
-    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
-        let mut buf = vec![0u8; request.package_len as _];
-        let actual_length = self.bulk_transfer(
-            request,
-            EndpointDirection::In,
-            buf.as_mut_slice(),
-            LIBUSB_TRANSFER_TYPE_BULK
-        ).await?;
-        buf.resize(actual_length, 0);
-        Ok(buf)
+        let mut data = Vec::with_capacity(t2.actual_length());
+        for i in 0..t2.actual_length() {
+            data.push(t2.buff[i]);
+        }
+        Ok(data)
+        // let mut buf = vec![0u8; request.package_len as _];
+        // let actual_length = self.bulk_transfer(
+        //     request,
+        //     EndpointDirection::In,
+        //     buf.as_mut_slice(),
+        //     LIBUSB_TRANSFER_TYPE_BULK
+        // ).await?;
+        // buf.resize(actual_length, 0);
+        // Ok(buf)
     }
     pub async fn bulk_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
-        let actual_length = self.bulk_transfer(
+        let mut transfer = Transfer::bulk(
+            self,
             request,
             EndpointDirection::Out,
             data,
-            LIBUSB_TRANSFER_TYPE_BULK
-        ).await?;
-
-        if actual_length != data.len() {
-            return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
+        )?;
+        unsafe {
+            (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
+        }
+        let t2 = Transfer::submit_wait(transfer)?.await?;
+        if t2.actual_length() != data.len() {
+            return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
         }
         Ok(())
+
+
+        // let actual_length = self.bulk_transfer(
+        //     request,
+        //     EndpointDirection::Out,
+        //     data,
+        //     LIBUSB_TRANSFER_TYPE_BULK
+        // ).await?;
+        //
+        // if actual_length != data.len() {
+        //     return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
+        // }
+        // Ok(())
     }
 
     pub fn open_bulk_in_channel(
@@ -141,28 +174,59 @@ impl Interface {
     }
 
     pub async fn interrupt_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
-        let mut buf = vec![0u8; request.package_len as _];
-        let actual_length = self.bulk_transfer(
+        let mut transfer = Transfer::bulk(
+            self,
             request,
             EndpointDirection::In,
-            buf.as_mut_slice(),
-            LIBUSB_TRANSFER_TYPE_INTERRUPT
-        ).await?;
-        buf.resize(actual_length, 0);
-        Ok(buf)
+            &[],
+
+        )?;
+        unsafe {
+            (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
+        }
+        let t2 = Transfer::submit_wait(transfer)?.await?;
+
+        let mut data = Vec::with_capacity(t2.actual_length());
+        for i in 0..t2.actual_length() {
+            data.push(t2.buff[i]);
+        }
+        Ok(data)
+        // let mut buf = vec![0u8; request.package_len as _];
+        // let actual_length = self.bulk_transfer(
+        //     request,
+        //     EndpointDirection::In,
+        //     buf.as_mut_slice(),
+        //     LIBUSB_TRANSFER_TYPE_INTERRUPT
+        // ).await?;
+        // buf.resize(actual_length, 0);
+        // Ok(buf)
     }
     pub async fn interrupt_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
-        let actual_length = self.bulk_transfer(
+        let mut transfer = Transfer::bulk(
+            self,
             request,
             EndpointDirection::Out,
             data,
-            LIBUSB_TRANSFER_TYPE_INTERRUPT
-        ).await?;
-
-        if actual_length != data.len() {
-            return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
+        )?;
+        unsafe {
+            (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
+        }
+        let t2 = Transfer::submit_wait(transfer)?.await?;
+        if t2.actual_length() != data.len() {
+            return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
         }
         Ok(())
+        // let actual_length = self.bulk_transfer(
+        //     request,
+        //     EndpointDirection::Out,
+        //     data,
+        //     LIBUSB_TRANSFER_TYPE_INTERRUPT
+        // ).await?;
+        //
+        // if actual_length != data.len() {
+        //     return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
+        // }
+        // Ok(())
     }
 }
 

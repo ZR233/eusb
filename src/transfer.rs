@@ -1,6 +1,9 @@
+use std::future::Future;
+use std::pin::Pin;
 use std::ptr::null_mut;
 use std::sync::{Arc, Mutex};
 use futures::channel::mpsc::{channel, Receiver};
+use futures::StreamExt;
 use libusb_src::*;
 use crate::define::{ControlTransferRequest, EndpointDirection};
 use crate::error::*;
@@ -9,15 +12,20 @@ use crate::interface::{BulkTransferRequest, Interface};
 
 pub struct Transfer{
     pub(crate) ptr: *mut libusb_transfer,
+    pub(crate) buff: Vec<u8>,
     result_callback: Arc<Mutex<dyn FnMut(Result<Transfer>)>>,
 }
 
 unsafe impl Send for Transfer {}
 unsafe impl Sync for Transfer {}
 
+pub type ResultFuture<T> = Pin<Box<dyn Future<Output=T> + Send>>;
 
 impl Transfer{
-    pub fn new(iso_packets: usize)->Result<Self>{
+    pub fn new(
+        iso_packets: usize,
+        buff_size: usize,
+    )->Result<Self>{
         let ptr = unsafe {
             let r = libusb_alloc_transfer(iso_packets as _);
             if r.is_null(){
@@ -28,6 +36,7 @@ impl Transfer{
 
         Ok(Self{
             ptr,
+            buff: vec![0; buff_size],
             result_callback:Arc::new(Mutex::new(|_|{}))
         })
     }
@@ -36,13 +45,24 @@ impl Transfer{
         device: &Device,
         request: ControlTransferRequest,
         direction: EndpointDirection,
-        buf: &mut [u8],
-    )->Result<Self>{
-        let s = Self::new(0)?;
+        data_in_len: u16,
+        data_out: &[u8]
+    ) ->Result<Self>{
+        let data_len = match direction {
+            EndpointDirection::In => data_in_len,
+            EndpointDirection::Out => data_out.len() as _,
+        };
+
+        let mut s = Self::new(0, LIBUSB_CONTROL_SETUP_SIZE + (data_len as usize))?;
+
+        if direction== EndpointDirection::Out {
+            for i in 0..data_out.len(){
+                s.buff[i+LIBUSB_CONTROL_SETUP_SIZE] = data_out[i];
+            }
+        }
 
         unsafe {
-
-            let buf_ptr = buf.as_mut_ptr();
+            let buf_ptr = s.buff.as_mut_ptr();
 
             libusb_fill_control_setup(
                 buf_ptr,
@@ -50,7 +70,7 @@ impl Transfer{
                 request.request,
                 request.value,
                 request.index,
-                (buf.len() - LIBUSB_CONTROL_SETUP_SIZE) as _ );
+                data_in_len);
 
             libusb_fill_control_transfer(
                 s.ptr,
@@ -68,12 +88,17 @@ impl Transfer{
         interface: &Interface,
         request: BulkTransferRequest,
         direction: EndpointDirection,
-        buf: &mut [u8],
+        data_out: &[u8],
     )->Result<Self>{
-        let s = Self::new(0)?;
+        let mut s = Self::new(0, request.package_len)?;
+        if direction== EndpointDirection::Out {
+            for i in 0..data_out.len(){
+                s.buff[i]= data_out[i]
+            }
+        }
 
         unsafe {
-            let buf_ptr = buf.as_mut_ptr();
+            let buf_ptr = s.buff.as_mut_ptr();
 
             libusb_fill_bulk_transfer(
                 s.ptr,
@@ -129,6 +154,18 @@ impl Transfer{
         Ok(())
     }
 
+    pub fn submit_wait(mut transfer: Self)->Result<ResultFuture<Result<Self>>>{
+        let mut rx = transfer.set_complete_cb();
+        Transfer::submit(transfer)?;
+
+        Ok( Box::pin(async move{
+            let r = rx.next().await.ok_or(Error::NotFound
+            )??;
+            Ok(r)
+        }))
+    }
+
+
     #[allow(unused)]
     pub fn cancel(&self)->Result<()>{
         unsafe {
@@ -171,6 +208,30 @@ impl Drop for Transfer {
     fn drop(&mut self) {
         unsafe {
             libusb_free_transfer(self.ptr)
+        }
+    }
+}
+
+pub struct TransferIn{
+    pub(crate) transfer: Option<Transfer>,
+}
+
+impl TransferIn{
+    pub async fn repeat(&mut self)->Result<Self>{
+        let mut transfer = self.transfer.take().unwrap();
+        let r = Transfer::submit_wait(transfer)?.await?;
+
+        Ok(Self{ transfer: Some(r) })
+    }
+
+    pub fn data(&self)->&[u8]{
+        match &self.transfer {
+            None => { &[] }
+            Some(transfer) => {
+                let len = transfer.actual_length();
+                let buff = transfer.buff.as_slice();
+                &buff[0..len]
+            }
         }
     }
 }
