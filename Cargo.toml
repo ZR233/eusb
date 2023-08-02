@@ -14,7 +14,7 @@ edition = "2021"
 members = ["libusb-src", "example"]
 
 [dependencies]
-libusb-src = {path = "libusb-src"}
+libusb-src = {path = "libusb-src", version = "1.26"}
 thiserror = "1.0"
 futures = "0.3"
 log = "0.4"
