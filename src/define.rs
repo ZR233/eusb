@@ -1,8 +1,6 @@
 use std::sync::{Condvar, Mutex};
 use std::time::Duration;
 use libusb_src::*;
-use crate::error::Error::Pipe;
-
 
 pub enum UsbControlRecipient {
     Device,
@@ -120,7 +118,7 @@ impl EventController {
 }
 
 #[repr(C)]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct DeviceDescriptor {
     pub(crate) data: libusb_device_descriptor,
 }
