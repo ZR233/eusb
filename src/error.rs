@@ -1,5 +1,5 @@
 use libusb_src::*;
-use std::{result, fmt};
+use std::{result};
 use std::ffi::c_int;
 
 pub type Result<T> = result::Result<T, Error>;

@@ -1,7 +1,6 @@
 use std::ptr::null_mut;
 use std::sync::{Arc, Mutex};
 use futures::channel::mpsc::{channel, Receiver};
-use log::debug;
 use libusb_src::*;
 use crate::define::{ControlTransferRequest, EndpointDirection};
 use crate::error::*;
@@ -9,7 +8,7 @@ use crate::device::Device;
 use crate::interface::{BulkTransferRequest, Interface};
 
 pub struct Transfer{
-    ptr: *mut libusb_transfer,
+    pub(crate) ptr: *mut libusb_transfer,
     result_callback: Arc<Mutex<dyn FnMut(Result<Transfer>)>>,
 }
 
@@ -39,7 +38,7 @@ impl Transfer{
         direction: EndpointDirection,
         buf: &mut [u8],
     )->Result<Self>{
-        let mut s = Self::new(0)?;
+        let s = Self::new(0)?;
 
         unsafe {
 
@@ -71,7 +70,7 @@ impl Transfer{
         direction: EndpointDirection,
         buf: &mut [u8],
     )->Result<Self>{
-        let mut s = Self::new(0)?;
+        let s = Self::new(0)?;
 
         unsafe {
             let buf_ptr = buf.as_mut_ptr();
@@ -129,6 +128,8 @@ impl Transfer{
         }
         Ok(())
     }
+
+    #[allow(unused)]
     pub fn cancel(&self)->Result<()>{
         unsafe {
             check_err(libusb_cancel_transfer(self.ptr))?;
@@ -172,8 +173,4 @@ impl Drop for Transfer {
             libusb_free_transfer(self.ptr)
         }
     }
-}
-
-pub struct TransferIn{
-    transfer: Transfer
 }

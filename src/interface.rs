@@ -56,6 +56,7 @@ impl Interface {
         request: BulkTransferRequest,
         direction: EndpointDirection,
         buf: &mut [u8],
+        transfer_type: u8,
     )->Result<usize>{
         let mut transfer = Transfer::bulk(
             &self,
@@ -63,6 +64,10 @@ impl Interface {
             direction,
             buf,
         )?;
+        unsafe {
+            (*transfer.ptr).transfer_type = transfer_type;
+        }
+
         let mut rx = transfer.set_complete_cb();
 
         Transfer::submit(transfer)?;
@@ -78,6 +83,7 @@ impl Interface {
             request,
             EndpointDirection::In,
             buf.as_mut_slice(),
+            LIBUSB_TRANSFER_TYPE_BULK
         ).await?;
         buf.resize(actual_length, 0);
         Ok(buf)
@@ -87,6 +93,7 @@ impl Interface {
             request,
             EndpointDirection::Out,
             data,
+            LIBUSB_TRANSFER_TYPE_BULK
         ).await?;
 
         if actual_length != data.len() {
@@ -133,6 +140,30 @@ impl Interface {
         Ok(rx)
     }
 
+    pub async fn interrupt_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
+        let mut buf = vec![0u8; request.package_len as _];
+        let actual_length = self.bulk_transfer(
+            request,
+            EndpointDirection::In,
+            buf.as_mut_slice(),
+            LIBUSB_TRANSFER_TYPE_INTERRUPT
+        ).await?;
+        buf.resize(actual_length, 0);
+        Ok(buf)
+    }
+    pub async fn interrupt_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
+        let actual_length = self.bulk_transfer(
+            request,
+            EndpointDirection::Out,
+            data,
+            LIBUSB_TRANSFER_TYPE_INTERRUPT
+        ).await?;
+
+        if actual_length != data.len() {
+            return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
+        }
+        Ok(())
+    }
 }
 
 impl Drop for Interface {
@@ -166,19 +197,6 @@ impl BulkInCancel {
             unsafe {
                 libusb_cancel_transfer(one.0);
             }
-        }
-    }
-}
-
-struct BulkOut{
-    transfers: Mutex<Vec<TransferPtr>>,
-
-}
-
-impl BulkOut {
-    fn new()->Self{
-        Self{
-            transfers: Mutex::new(vec![])
         }
     }
 }

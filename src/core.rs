@@ -81,7 +81,7 @@ impl UsbManager {
             let cnt = libusb_get_device_list(self.context, devs_raw.as_mut_ptr());
             check_err(cnt as _)?;
 
-            let mut devs_raw = devs_raw.assume_init();
+            let devs_raw = devs_raw.assume_init();
             DeviceList{
                 ptr: devs_raw,
                 i: 0,
@@ -97,7 +97,7 @@ impl UsbManager {
         let list = self.device_list()?;
         for device in list {
             let desc= device.descriptor();
-            if desc.idVendor == vendor_id as u16 && desc.idProduct == product_id as u16 {
+            if desc.id_vendor() == vendor_id as u16 && desc.id_product() == product_id as u16 {
                 return  Ok(device);
             }
         }
@@ -151,7 +151,6 @@ impl Drop for DeviceList {
 
 #[cfg(test)]
 mod test{
-    use std::time::Duration;
     use crate::core::UsbManager;
 
     #[test]

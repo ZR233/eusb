@@ -19,13 +19,26 @@ mod test {
     async fn get_hackrf(manager: &UsbManager) -> Arc<Device> {
         manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap()
     }
-
+    #[tokio::test]
+    async fn test_device() {
+        init();
+        let manager = UsbManager::new().unwrap();
+        let device = get_hackrf(&manager).await;
+        debug!("sn: {}", device.serial_number());
+        let device_descriptor = device.descriptor();
+        debug!("{:?}", device_descriptor);
+        let configs = device.config_list().unwrap();
+        for config in configs {
+            debug!("{}", config);
+        }
+        debug!("finish");
+    }
     #[tokio::test]
     async fn test_control_transfer_in() {
         init();
         {
             let manager = UsbManager::new().unwrap();
-            let mut device = get_hackrf(&manager).await;
+            let device = get_hackrf(&manager).await;
 
             println!("{} speed: {:?}", device, device.speed());
 
@@ -60,7 +73,7 @@ mod test {
     async fn test_control_transfer_out() {
         {
             let manager = UsbManager::new().unwrap();
-            let mut device = get_hackrf(&manager).await;
+            let device = get_hackrf(&manager).await;
 
             let mut request = ControlTransferRequest::default();
             request.recipient = UsbControlRecipient::Device;
@@ -83,7 +96,7 @@ mod test {
 
         {
             let manager = UsbManager::new().unwrap();
-            let mut device = get_hackrf(&manager).await;
+            let device = get_hackrf(&manager).await;
             let mut request = ControlTransferRequest::default();
             request.recipient = UsbControlRecipient::Device;
             request.transfer_type = UsbControlTransferType::Vendor;
@@ -178,7 +191,7 @@ mod test {
         init();
         {
             let manager = UsbManager::new().unwrap();
-            let mut device = get_hackrf(&manager).await;
+            let device = get_hackrf(&manager).await;
             let mut request = ControlTransferRequest::default();
             request.recipient = UsbControlRecipient::Device;
             request.transfer_type = UsbControlTransferType::Vendor;

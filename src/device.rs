@@ -1,6 +1,6 @@
-use std::ffi::{c_char, c_int, c_uchar};
-use std::fmt::{Display, Formatter, Pointer};
-use std::ptr::null_mut;
+use std::ffi::{c_int, c_uchar};
+use std::fmt::{Debug, Display, Formatter};
+use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::{Arc, Mutex};
 use log::debug;
 use libusb_src::*;
@@ -9,7 +9,6 @@ use crate::error::*;
 use crate::interface::Interface;
 use crate::transfer;
 use futures::StreamExt;
-use futures::channel::mpsc::*;
 
 pub struct Device {
     pub(crate) dev: *mut libusb_device,
@@ -31,8 +30,6 @@ unsafe impl Send for Device {}
 
 unsafe impl Sync for Device {}
 
-pub type Descriptor = libusb_device_descriptor;
-
 impl Device {
     pub(crate) fn new(
         dev: *mut libusb_device,
@@ -48,16 +45,36 @@ impl Device {
             event_controller
         }
     }
-    pub fn descriptor(&self) -> Descriptor {
-        let mut desc = Descriptor::default();
+    pub fn descriptor(&self) -> DeviceDescriptor {
+        let mut desc = DeviceDescriptor::default();
         unsafe {
-            let desc_ptr = (&mut desc) as *mut libusb_device_descriptor;
-            let r = libusb_get_device_descriptor(self.dev, desc_ptr);
+            let r = libusb_get_device_descriptor(self.dev, &mut desc.data);
             if r < 0 {
                 return desc;
             }
         }
         desc
+    }
+
+    pub fn config_list(&self)->Result<Vec<Config>>{
+        let mut out = vec![];
+        let desc = self.descriptor();
+        for index in 0..desc.data.bNumConfigurations {
+            let mut config = Config{
+                data: null_mut(),
+            };
+            unsafe {
+                let r = libusb_get_config_descriptor(
+                    self.dev,
+                    index,
+                    &mut config.data,
+                );
+                if r >=0{
+                    out.push(config);
+                }
+            }
+        }
+        Ok(out)
     }
 
     pub fn speed(&self) -> UsbSpeed {
@@ -77,7 +94,35 @@ impl Device {
             LIBUSB_SPEED_UNKNOWN | _ => UsbSpeed::Unknown
         }
     }
-
+    pub fn serial_number(&self)-> String{
+        let desc = self.descriptor();
+        let index = desc.data.iSerialNumber;
+        let mut buff = vec![0u8; 256];
+        let buff_len = buff.len();
+        if index > 0 {
+            unsafe {
+                match self.get_handle(){
+                    Ok(dev) => {
+                        let r = libusb_get_string_descriptor_ascii(
+                            dev,
+                            index,
+                            buff.as_mut_ptr(),
+                            buff_len as _
+                        );
+                        if r > 0{
+                            buff.resize(r as _, 0);
+                            match String::from_utf8(buff){
+                                Ok(s) => {return s;}
+                                Err(_) => {}
+                            }
+                        }
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+        String::new()
+    }
     pub(crate) fn get_handle(&self) -> Result<*mut libusb_device_handle> {
         let mut g = self.handle.lock().unwrap();
 
@@ -104,10 +149,25 @@ impl Device {
         }
     }
     pub fn set_configuration(&self, config: i32) -> Result<()> {
+        let mut g = self.handle.lock().unwrap();
         unsafe {
-            let config: c_int = config as _;
-            let r = libusb_set_configuration(self.get_handle()?, config);
+            let mut config_old: c_int = 0;
+            let ptr = (&mut config_old) as *mut c_int;
+            let mut r = libusb_get_configuration(*g, ptr);
             check_err(r)?;
+
+            if config!= config_old {
+
+                libusb_set_auto_detach_kernel_driver(*g, 0);
+                let config: c_int = config as _;
+                r = libusb_set_configuration(*g, config);
+                if r<0{
+                    libusb_set_auto_detach_kernel_driver(*g, 1);
+                }
+                check_err(r)?;
+
+                libusb_set_auto_detach_kernel_driver(*g, 1);
+            }
         }
         Ok(())
     }
@@ -173,16 +233,16 @@ impl Device {
 
         Ok(r.actual_length())
     }
-
-
-
 }
 
 
 impl Display for Device {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let des = self.descriptor();
-        write!(f, "pid: {} vid: {}", des.idProduct, des.idVendor)
+        write!(f, r#"
+pid: {}
+vid: {}
+"#, des.id_product(), des.id_vendor())
     }
 }
 
@@ -190,7 +250,7 @@ impl Drop for Device {
     fn drop(&mut self) {
         unsafe {
             libusb_unref_device(self.dev);
-            let mut handle = self.handle.lock().unwrap();
+            let handle = self.handle.lock().unwrap();
             if !handle.is_null() {
                 self.event_controller.close_device();
                 libusb_close(*handle);
@@ -200,6 +260,46 @@ impl Drop for Device {
     }
 }
 
+pub struct Config{
+    data: *const libusb_config_descriptor,
+}
 
+impl Config {
+    pub fn value(&self)->u8{
+        unsafe {
+            (*self.data).bConfigurationValue
+        }
+    }
+    pub fn max_power(&self) ->u8 {
+        unsafe{
+            (*self.data).bMaxPower
+        }
+    }
+    pub fn extra(&self) -> &[u8] {
+        unsafe {
+            let e =    slice_from_raw_parts((*self.data).extra as *const u8, (*self.data).extra_length as usize);
+            &*e
+        }
+    }
+}
 
+impl Display for Config {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, r#"
+value: {}
+max power: {}
+extra: {:?}
+        "#, self.value(), self.max_power() ,String::from_utf8_lossy(self.extra()))
+    }
+}
+
+impl Drop for Config {
+    fn drop(&mut self) {
+        if !self.data.is_null(){
+            unsafe {
+                libusb_free_config_descriptor(self.data);
+            }
+        }
+    }
+}
 
