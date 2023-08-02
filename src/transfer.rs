@@ -1,12 +1,14 @@
 use std::ptr::null_mut;
 use std::sync::{Arc, Mutex};
+use futures::channel::mpsc::{channel, Receiver};
 use log::debug;
 use libusb_src::*;
 use crate::define::{ControlTransferRequest, EndpointDirection};
 use crate::error::*;
 use crate::device::Device;
+use crate::interface::{BulkTransferRequest, Interface};
 
-pub(crate) struct Transfer{
+pub struct Transfer{
     ptr: *mut libusb_transfer,
     result_callback: Arc<Mutex<dyn FnMut(Result<Transfer>)>>,
 }
@@ -22,7 +24,6 @@ impl Transfer{
             if r.is_null(){
                 return Err(Error::Other("alloc transfer fail".to_string()));
             }
-            debug!("alloc transfer");
             r
         };
 
@@ -32,15 +33,13 @@ impl Transfer{
         })
     }
 
-    pub fn control<F> (
+    pub fn control(
         device: &Device,
         request: ControlTransferRequest,
         direction: EndpointDirection,
         buf: &mut [u8],
-        callback: F,
-    )->Result<Self> where F: FnMut (Result<Transfer>), F: 'static{
+    )->Result<Self>{
         let mut s = Self::new(0)?;
-        s.result_callback=Arc::new(Mutex::new(callback));
 
         unsafe {
 
@@ -66,7 +65,30 @@ impl Transfer{
 
         Ok(s)
     }
+    pub fn bulk (
+        interface: &Interface,
+        request: BulkTransferRequest,
+        direction: EndpointDirection,
+        buf: &mut [u8],
+    )->Result<Self>{
+        let mut s = Self::new(0)?;
 
+        unsafe {
+            let buf_ptr = buf.as_mut_ptr();
+
+            libusb_fill_bulk_transfer(
+                s.ptr,
+                interface.dev_handle,
+                (request.endpoint as u32 | direction.to_libusb()) as u8,
+                buf_ptr,
+                request.package_len as _,
+                Self::custom_cb,
+                null_mut(),
+                request.timeout.as_millis() as _,
+            );
+        }
+        Ok(s)
+    }
 
     extern "system"  fn custom_cb(data: *mut libusb_transfer){
         unsafe {
@@ -114,6 +136,24 @@ impl Transfer{
         Ok(())
     }
 
+    pub fn set_callback<F>(&mut self, callback: F)
+        where F: FnMut (Result<Transfer>), F: 'static{
+        self.result_callback = Arc::new(Mutex::new(callback));
+    }
+
+    pub(crate) fn set_complete_cb(&mut self)->Receiver<Result<Transfer>>{
+
+        let (mut tx, rx) = channel::<Result<Transfer>>(1);
+
+        let callback = move|result|{
+            let _ = tx.try_send(result);
+        };
+
+        self.set_callback(callback);
+
+        rx
+    }
+
     pub fn actual_length(&self)->usize{
         (unsafe {
             (*self.ptr).actual_length
@@ -131,35 +171,9 @@ impl Drop for Transfer {
         unsafe {
             libusb_free_transfer(self.ptr)
         }
-        debug!("free transfer");
     }
 }
 
 pub struct TransferIn{
     transfer: Transfer
 }
-
-// impl TransferIn{
-//     pub fn control<T>(
-//         device: &Device,
-//         request: ControlTransferRequest,
-//         buf: &mut [c_uchar],
-//         callback: libusb_transfer_cb_fn,
-//         data: T
-//     )->Result<Self>{
-//         let transfer = Transfer::control(
-//             device,
-//             request,
-//             LIBUSB_ENDPOINT_IN,
-//             buf, callback, data)?;
-//
-//         Ok(Self{
-//             transfer
-//         })
-//     }
-//     pub fn submit(&self)->Result<()>{
-//         self.transfer.submit()
-//     }
-// }
-
-

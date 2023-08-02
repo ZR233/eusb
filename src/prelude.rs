@@ -78,7 +78,7 @@ mod test {
 
 
     #[tokio::test]
-    async fn test_bulk_transfer_in() {
+    async fn test_bulk_transfer_in_channel() {
         init();
 
         {
@@ -164,6 +164,62 @@ mod test {
             info!("send stop");
             stop_tx.send(1).unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        info!("finish");
+    }
+
+
+
+    #[tokio::test]
+    async fn test_bulk_transfer_in() {
+        init();
+        {
+            let manager = UsbManager::new().unwrap();
+            let mut device = get_hackrf(&manager).await;
+            let mut request = ControlTransferRequest::default();
+            request.recipient = UsbControlRecipient::Device;
+            request.transfer_type = UsbControlTransferType::Vendor;
+            request.request = 1;
+            request.value = 0;
+
+            device.control_transfer_out(
+                request,
+                &[0; 0],
+            ).await.unwrap();
+
+            let mut request = ControlTransferRequest::default();
+            request.recipient = UsbControlRecipient::Device;
+            request.transfer_type = UsbControlTransferType::Vendor;
+            request.request = 1;
+            request.value = 1;
+
+            device.control_transfer_out(
+                request,
+                &[0; 0],
+            ).await.unwrap();
+
+            let interface = device.get_interface(0).unwrap();
+
+            let mut all = 0usize;
+            let start = Instant::now();
+            for _ in 0..1000 {
+                let data = interface.bulk_transfer_in(BulkTransferRequest{
+                    endpoint: 1,
+                    package_len: 262144,
+                    timeout: Default::default(),
+                }).await.unwrap();
+                all += data.len();
+            }
+            let duration = Instant::now().duration_since(start);
+            let bits = (all) as f64;
+            let seconds = duration.as_secs_f64();
+            let mb = (bits / seconds) / 1_000_000.0;
+
+            info!("速度：{} MB/s", mb);
+            info!("接收停止");
         }
 
 

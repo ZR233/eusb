@@ -155,21 +155,17 @@ impl Device {
         &self,
         request: ControlTransferRequest,
         direction: EndpointDirection,
-        buf: &mut [c_uchar],
+        buf: &mut [u8],
     ) -> Result<usize> {
-        let (mut tx, mut rx) = channel::<Result<transfer::Transfer>>(1);
 
-        let cb = move|result|{
-            let _ = tx.try_send(result);
-        };
-
-        let transfer = transfer::Transfer::control(
+        let mut transfer = transfer::Transfer::control(
             &self,
             request,
             direction,
             buf,
-            cb
         )?;
+        let mut rx = transfer.set_complete_cb();
+
         transfer::Transfer::submit(transfer)?;
 
         let r = rx.next().await.ok_or(Error::NotFound

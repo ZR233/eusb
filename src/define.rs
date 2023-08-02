@@ -1,9 +1,7 @@
 use std::sync::{Condvar, Mutex};
 use std::time::Duration;
-use futures::channel::oneshot::*;
-use log::debug;
 use libusb_src::*;
-use crate::error::*;
+
 
 pub enum UsbControlRecipient {
     Device,
@@ -118,47 +116,4 @@ impl EventController {
         (*ctx).is_exit=true;
         self.cond.notify_all();
     }
-
 }
-
-
-
-pub(crate) extern "system" fn libusb_transfer_cb_fn(data: *mut libusb_transfer){
-    unsafe {
-        let ptr = (*data).user_data as *mut Sender<*mut libusb_transfer>;
-        let tx = Box::from_raw(ptr);
-        let _ = tx.send(data);
-    }
-}
-
-pub(crate) fn transfer_channel()-> (Sender<*mut libusb_transfer>, Receiver<*mut libusb_transfer>){
-    channel::<*mut libusb_transfer>()
-}
-
-// pub(crate) struct Transfer{
-//     pub(crate) handle: *mut libusb_transfer
-// }
-//
-// unsafe impl Send for Transfer {}
-//
-// impl Transfer {
-//     pub(crate) fn new(iso_packets: usize)->Result< Self>{
-//         unsafe {
-//             let r = libusb_alloc_transfer(iso_packets as _);
-//             if r.is_null(){
-//                 return Err(Error::Other("alloc transfer fail".to_string()));
-//             }
-//             Ok(Self{
-//                 handle:r
-//             })
-//         }
-//     }
-// }
-//
-// impl Drop for Transfer {
-//     fn drop(&mut self) {
-//         unsafe {
-//             libusb_free_transfer(self.handle);
-//         }
-//     }
-// }

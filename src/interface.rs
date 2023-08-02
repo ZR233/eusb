@@ -1,15 +1,18 @@
 use std::ffi::{c_int};
-use std::ptr::{null_mut, slice_from_raw_parts_mut};
+use std::ptr::{slice_from_raw_parts_mut};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use futures::StreamExt;
 use log::{debug, warn};
 use libusb_src::*;
+use crate::define::EndpointDirection;
 use crate::error::*;
+use crate::transfer::Transfer;
 
 
 pub struct  Interface{
     number: c_int,
-    dev_handle: *mut libusb_device_handle,
+    pub(crate) dev_handle: *mut libusb_device_handle,
 }
 
 unsafe impl Send for Interface{}
@@ -48,12 +51,49 @@ impl Interface {
         })
     }
 
-    async fn bulk_transfer_in(&self,  request: BulkTransferRequest){
+    async fn bulk_transfer(
+        &self,
+        request: BulkTransferRequest,
+        direction: EndpointDirection,
+        buf: &mut [u8],
+    )->Result<usize>{
+        let mut transfer = Transfer::bulk(
+            &self,
+            request,
+            direction,
+            buf,
+        )?;
+        let mut rx = transfer.set_complete_cb();
 
+        Transfer::submit(transfer)?;
 
+        let r = rx.next().await.ok_or(Error::NotFound
+        )??;
 
+        Ok(r.actual_length())
     }
+    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
+        let mut buf = vec![0u8; request.package_len as _];
+        let actual_length = self.bulk_transfer(
+            request,
+            EndpointDirection::In,
+            buf.as_mut_slice(),
+        ).await?;
+        buf.resize(actual_length, 0);
+        Ok(buf)
+    }
+    pub async fn bulk_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
+        let actual_length = self.bulk_transfer(
+            request,
+            EndpointDirection::Out,
+            data,
+        ).await?;
 
+        if actual_length != data.len() {
+            return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
+        }
+        Ok(())
+    }
 
     pub fn open_bulk_in_channel(
         &self,
@@ -93,19 +133,6 @@ impl Interface {
         Ok(rx)
     }
 
-
-    async fn bulk_out_batch(
-        &self,
-        request: BulkTransferRequest,
-        option: BulkChannelOption,
-        data: &[u8],
-    )->Result<usize>{
-        let mut send_size = 0;
-        let bulk = Arc::new(BulkOut::new());
-
-
-        Ok(send_size)
-    }
 }
 
 impl Drop for Interface {
@@ -184,7 +211,6 @@ impl TransferIn {
                 ptr: transfer,
             })
         }
-
     }
 }
 
