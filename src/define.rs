@@ -53,7 +53,18 @@ pub struct  ControlTransferRequest{
     pub timeout: Duration,
 }
 
+pub  enum EndpointDirection{
+    In, Out
+}
 
+impl EndpointDirection {
+    pub(crate) fn to_libusb(&self)->u32{
+        (match self {
+            EndpointDirection::In => LIBUSB_ENDPOINT_IN,
+            EndpointDirection::Out => LIBUSB_ENDPOINT_OUT,
+        }) as u32
+    }
+}
 
 
 impl Default for ControlTransferRequest {
@@ -73,7 +84,7 @@ pub(crate) struct EventController{
     pub(crate) ctx: Mutex<EventControllerCtx>,
     pub(crate) cond: Condvar,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug, Copy)]
 pub(crate) struct EventControllerCtx{
     pub(crate) device_count: usize,
     pub(crate) is_exit: bool,
@@ -124,30 +135,30 @@ pub(crate) fn transfer_channel()-> (Sender<*mut libusb_transfer>, Receiver<*mut 
     channel::<*mut libusb_transfer>()
 }
 
-pub(crate) struct Transfer{
-    pub(crate) handle: *mut libusb_transfer
-}
-
-unsafe impl Send for Transfer {}
-
-impl Transfer {
-    pub(crate) fn new(iso_packets: usize)->Result< Self>{
-        unsafe {
-            let r = libusb_alloc_transfer(iso_packets as _);
-            if r.is_null(){
-                return  Err(Error::Other);
-            }
-            Ok(Self{
-                handle:r
-            })
-        }
-    }
-}
-
-impl Drop for Transfer {
-    fn drop(&mut self) {
-        unsafe {
-            libusb_free_transfer(self.handle);
-        }
-    }
-}
+// pub(crate) struct Transfer{
+//     pub(crate) handle: *mut libusb_transfer
+// }
+//
+// unsafe impl Send for Transfer {}
+//
+// impl Transfer {
+//     pub(crate) fn new(iso_packets: usize)->Result< Self>{
+//         unsafe {
+//             let r = libusb_alloc_transfer(iso_packets as _);
+//             if r.is_null(){
+//                 return Err(Error::Other("alloc transfer fail".to_string()));
+//             }
+//             Ok(Self{
+//                 handle:r
+//             })
+//         }
+//     }
+// }
+//
+// impl Drop for Transfer {
+//     fn drop(&mut self) {
+//         unsafe {
+//             libusb_free_transfer(self.handle);
+//         }
+//     }
+// }

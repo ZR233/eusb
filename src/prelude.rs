@@ -6,7 +6,7 @@ pub use crate::device::*;
 mod test {
     use std::sync::Arc;
     use std::time::{Duration, Instant};
-    use log::{info, LevelFilter};
+    use log::{debug, info, LevelFilter};
     use tokio::select;
     use crate::interface::{BulkChannelOption, BulkTransferRequest};
     use super::*;
@@ -22,6 +22,7 @@ mod test {
 
     #[tokio::test]
     async fn test_control_transfer_in() {
+        init();
         {
             let manager = UsbManager::new().unwrap();
             let mut device = get_hackrf(&manager).await;
@@ -46,8 +47,12 @@ mod test {
             let version = String::from_utf8(data).unwrap();
 
             println!("version: {}", version);
+
+
         }
-        std::thread::sleep(Duration::from_secs(1));
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        debug!("all finish");
     }
 
 
@@ -103,6 +108,8 @@ mod test {
 
             let interface = device.get_interface(0).unwrap();
             let mut option = BulkChannelOption::default();
+            option.request_size=2;
+
             let mut rx = interface.open_bulk_in_channel(BulkTransferRequest {
                 endpoint: 1,
                 package_len: 262144,
@@ -146,14 +153,14 @@ mod test {
             request.request = 1;
             request.value = 0;
 
-            let start = Instant::now();
-
-            device.control_transfer_out(
-                request,
-                &[0; 0],
-            ).await.unwrap();
-            info!("send off cost: {:?}", start.elapsed());
-            tokio::time::sleep(Duration::from_secs(5)).await;
+            // let start = Instant::now();
+            //
+            // device.control_transfer_out(
+            //     request,
+            //     &[0; 0],
+            // ).await.unwrap();
+            // info!("send off cost: {:?}", start.elapsed());
+            // tokio::time::sleep(Duration::from_secs(5)).await;
             info!("send stop");
             stop_tx.send(1).unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;

@@ -1,10 +1,8 @@
 use std::ffi::{c_int};
-use std::mem;
 use std::ptr::{null_mut, slice_from_raw_parts_mut};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use log::{debug, warn};
-use tokio::time::Instant;
 use libusb_src::*;
 use crate::error::*;
 
@@ -49,6 +47,14 @@ impl Interface {
             dev_handle,
         })
     }
+
+    async fn bulk_transfer_in(&self,  request: BulkTransferRequest){
+
+
+
+    }
+
+
     pub fn open_bulk_in_channel(
         &self,
         request: BulkTransferRequest,

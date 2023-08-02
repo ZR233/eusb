@@ -1,12 +1,11 @@
-
 use std::mem;
 use std::ptr::{slice_from_raw_parts};
 use std::sync::Arc;
+use log::debug;
 use crate::error::*;
 use libusb_src::*;
 use crate::define::*;
 use crate::device::*;
-
 
 pub struct UsbManager{
     context:  *mut libusb_context,
@@ -39,26 +38,31 @@ impl UsbManager {
                 std::thread::spawn(move || {
                     let ptr = context;
                     let controller = event_controller;
+                    let mut ctx = {
+                        controller.ctx.lock().unwrap().clone()
+                    };
 
                     unsafe {
-                        loop {
-                            let c = {
-                                controller.ctx.lock().unwrap().clone()
-                            };
-                            if c.is_exit {
-                                break;
-                            }
-                            if c.device_count>0 {
+                        while !ctx.is_exit{
+                            // debug!("ctx: {:?}", ctx);
+                            if ctx.device_count>0 {
+                                // debug!("wait even");
                                 libusb_handle_events(ptr.0);
+                                // debug!("even ok");
+                                ctx = {
+                                    controller.ctx.lock().unwrap().clone()
+                                };
                             }else{
-                                let _unused = controller.cond.wait(controller.ctx.lock().unwrap()).unwrap();
-                                drop(_unused);
+                                // debug!("wait cvar");
+                                let mut g = controller.ctx.lock().unwrap();
+                                g = controller.cond.wait(g).unwrap();
+                                // std::thread::sleep(Duration::from_millis(100));
+                                ctx = g.clone();
+                                // debug!("cond ok");
                             }
                         }
-                        unsafe {
-                            libusb_exit(ptr.0);
-                        }
-                        println!("event_finish");
+                        libusb_exit(ptr.0);
+                        debug!("event_finish");
                     }
                 });
 

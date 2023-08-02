@@ -7,7 +7,9 @@ use libusb_src::*;
 use crate::define::*;
 use crate::error::*;
 use crate::interface::Interface;
-
+use crate::transfer;
+use futures::StreamExt;
+use futures::channel::mpsc::*;
 
 pub struct Device {
     pub(crate) dev: *mut libusb_device,
@@ -83,10 +85,11 @@ impl Device {
             if g.is_null() {
                 let r = libusb_open(self.dev, &mut *g);
                 check_err(r)?;
+                self.event_controller.open_device();
+
                 libusb_set_auto_detach_kernel_driver(*g, 1);
             }
         }
-        self.event_controller.open_device();
         Ok(*g)
     }
 
@@ -118,7 +121,7 @@ impl Device {
         let mut buf = vec![0 as c_uchar; buf_len];
         let actual_length = self.control_transfer(
             request,
-            LIBUSB_ENDPOINT_IN,
+            EndpointDirection::In,
             buf.as_mut_slice(),
         ).await?;
         let mut data = Vec::with_capacity(actual_length);
@@ -138,7 +141,7 @@ impl Device {
 
         let actual_length = self.control_transfer(
             request,
-            LIBUSB_ENDPOINT_OUT,
+            EndpointDirection::Out,
             buf.as_mut_slice(),
         ).await?;
 
@@ -151,52 +154,32 @@ impl Device {
     async fn control_transfer(
         &self,
         request: ControlTransferRequest,
-        request_type: u8,
+        direction: EndpointDirection,
         buf: &mut [c_uchar],
     ) -> Result<usize> {
-        let mut transfer = Transfer::new(0)?;
-        let (tx, rx) = transfer_channel();
+        let (mut tx, mut rx) = channel::<Result<transfer::Transfer>>(1);
 
-        unsafe {
-            let user_data = Box::new(tx);
-            let user_data = Box::into_raw(user_data);
-            let buf_ptr = buf.as_mut_ptr();
+        let cb = move|result|{
+            let _ = tx.try_send(result);
+        };
 
-            libusb_fill_control_setup(
-                buf_ptr,
-                (request_type as u32 | request.transfer_type.to_libusb() | request.recipient.to_libusb()) as u8,
-                request.request,
-                request.value,
-                request.index,
-                (buf.len() - LIBUSB_CONTROL_SETUP_SIZE) as _ );
+        let transfer = transfer::Transfer::control(
+            &self,
+            request,
+            direction,
+            buf,
+            cb
+        )?;
+        transfer::Transfer::submit(transfer)?;
 
+        let r = rx.next().await.ok_or(Error::NotFound
+        )??;
 
-            libusb_fill_control_transfer(
-                transfer.handle,
-                self.get_handle()?,
-                buf_ptr,
-                libusb_transfer_cb_fn,
-                user_data as _,
-                request.timeout.as_millis() as _,
-            );
-
-            let r = libusb_submit_transfer(transfer.handle);
-            check_err(r)?;
-
-            let r = rx.await.map_err(|e| {
-                Error::Other
-            })?;
-            match (*r).status {
-                LIBUSB_TRANSFER_COMPLETED => Ok((*r).actual_length as _),
-                LIBUSB_TRANSFER_OVERFLOW => Err(Error::Overflow),
-                LIBUSB_TRANSFER_TIMED_OUT => Err(Error::Timeout),
-                LIBUSB_TRANSFER_CANCELLED => Err(Error::Cancelled),
-                LIBUSB_TRANSFER_STALL => Err(Error::NotSupported),
-                LIBUSB_TRANSFER_NO_DEVICE => Err(Error::NoDevice),
-                LIBUSB_TRANSFER_ERROR |_ => Err(Error::Other),
-            }
-        }
+        Ok(r.actual_length())
     }
+
+
+
 }
 
 
@@ -213,8 +196,8 @@ impl Drop for Device {
             libusb_unref_device(self.dev);
             let mut handle = self.handle.lock().unwrap();
             if !handle.is_null() {
-                libusb_close(*handle);
                 self.event_controller.close_device();
+                libusb_close(*handle);
             }
             debug!("Device closed");
         }
