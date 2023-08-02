@@ -1,18 +1,16 @@
-
 use std::mem;
-use std::ptr::{null_mut, slice_from_raw_parts};
+use std::ptr::{slice_from_raw_parts};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use log::debug;
 use crate::error::*;
 use libusb_src::*;
-use crate::device::Device;
-
+use crate::define::*;
+use crate::device::*;
 
 pub struct UsbManager{
     context:  *mut libusb_context,
-    is_event_thread_run: Arc<AtomicBool>
+    event_controller: Arc<EventController>
 }
-
 
 
 unsafe  impl Send for UsbManager{}
@@ -32,18 +30,39 @@ impl UsbManager {
             context.assume_init()
         };
 
-        let is_event_thread_run =Arc::new(AtomicBool::new(true));
+        let event_controller =Arc::new(EventController::new());
         {
             let context = Context(context);
-            let is_event_thread_run = is_event_thread_run.clone();
+            let event_controller = event_controller.clone();
 
                 std::thread::spawn(move || {
+                    let ptr = context;
+                    let controller = event_controller;
+                    let mut ctx = {
+                        controller.ctx.lock().unwrap().clone()
+                    };
+
                     unsafe {
-                        let ptr = context;
-                        while is_event_thread_run.load(Ordering::SeqCst) {
+                        while !ctx.is_exit{
+                            // debug!("ctx: {:?}", ctx);
+                            if ctx.device_count>0 {
+                                // debug!("wait even");
                                 libusb_handle_events(ptr.0);
+                                // debug!("even ok");
+                                ctx = {
+                                    controller.ctx.lock().unwrap().clone()
+                                };
+                            }else{
+                                // debug!("wait cvar");
+                                let mut g = controller.ctx.lock().unwrap();
+                                g = controller.cond.wait(g).unwrap();
+                                // std::thread::sleep(Duration::from_millis(100));
+                                ctx = g.clone();
+                                // debug!("cond ok");
+                            }
                         }
-                        println!("event_finish");
+                        libusb_exit(ptr.0);
+                        debug!("event_finish");
                     }
                 });
 
@@ -51,7 +70,7 @@ impl UsbManager {
 
         Ok(Self{
             context,
-            is_event_thread_run
+            event_controller
         })
     }
 
@@ -62,11 +81,12 @@ impl UsbManager {
             let cnt = libusb_get_device_list(self.context, devs_raw.as_mut_ptr());
             check_err(cnt as _)?;
 
-            let mut devs_raw = devs_raw.assume_init();
+            let devs_raw = devs_raw.assume_init();
             DeviceList{
                 ptr: devs_raw,
                 i: 0,
-                length: cnt as _
+                length: cnt as _,
+                event_controller: self.event_controller.clone()
             }
         };
 
@@ -77,7 +97,7 @@ impl UsbManager {
         let list = self.device_list()?;
         for device in list {
             let desc= device.descriptor();
-            if desc.idVendor == vendor_id as u16 && desc.idProduct == product_id as u16 {
+            if desc.id_vendor() == vendor_id as u16 && desc.id_product() == product_id as u16 {
                 return  Ok(device);
             }
         }
@@ -88,17 +108,15 @@ impl UsbManager {
 
 impl Drop for UsbManager {
     fn drop(&mut self) {
-        self.is_event_thread_run.store(false, Ordering::SeqCst);
-        unsafe {
-            libusb_exit(self.context);
-        }
+        self.event_controller.exit();
     }
 }
 
 pub struct  DeviceList{
     ptr: *const *mut libusb_device,
     i: usize,
-    length: usize
+    length: usize,
+    event_controller: Arc<EventController>
 }
 
 impl Iterator for DeviceList{
@@ -113,7 +131,7 @@ impl Iterator for DeviceList{
                 return None;
             }
 
-            Device::new(dev)
+            Device::new(dev, self.event_controller.clone())
         };
 
         self.i+=1;
@@ -133,7 +151,6 @@ impl Drop for DeviceList {
 
 #[cfg(test)]
 mod test{
-    use std::time::Duration;
     use crate::core::UsbManager;
 
     #[test]
@@ -152,33 +169,6 @@ mod test{
         let device = manager.open_device_with_vid_pid(0x1d50,0x6089).unwrap();
 
         println!("{} speed: {:?}", device, device.speed());
-    }
-
-
-    #[tokio::test]
-    async fn test_interface() {
-        {
-            let manager = UsbManager::new().unwrap();
-            let mut device = manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap();
-
-            println!("{} speed: {:?}", device, device.speed());
-
-            // device.set_configuration(0x1).unwrap();
-            let config = device.get_configuration().unwrap();
-
-            println!("config: {}", config);
-
-            let interface = device.get_interface(0).unwrap();
-
-            interface.control_transfer().await.unwrap();
-
-
-        }
-
-
-        std::thread::sleep(Duration::from_secs(1));
-
-
     }
 
 }

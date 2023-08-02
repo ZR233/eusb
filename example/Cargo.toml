@@ -1,5 +1,5 @@
 [package]
-name = "eusb"
+name = "example"
 version = "0.0.1"
 authors = ["zhour rui <zrufo747@outlook.com>"]
 description = "Rust library for accessing USB devices."
@@ -7,18 +7,19 @@ license = "MIT"
 homepage = "https://github.com/ZR233/eusb"
 repository = "https://github.com/ZR233/eusb.git"
 readme = "README.md"
-keywords = ["usb", "libusb", "hardware"]
+keywords = ["usb", "libusb", "hardware", "bindings"]
 edition = "2021"
 
-[workspace]
-members = ["libusb-src", "example"]
+[[bin]]
+name = "control_transfer"
+path = "control_transfer.rs"
 
 [dependencies]
-libusb-src = {path = "libusb-src", version = "1.26"}
+libusb-src = {  path = "../libusb-src"  }
+eusb = {    path = "../"    }
 thiserror = "1.0"
-futures = "0.3"
+tokio = { version = "1", features = ["full"] }
 log = "0.4"
+env_logger = "0.9"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
-env_logger = "0.10.0"
