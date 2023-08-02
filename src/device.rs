@@ -149,7 +149,7 @@ impl Device {
         }
     }
     pub fn set_configuration(&self, config: i32) -> Result<()> {
-        let mut g = self.handle.lock().unwrap();
+        let g = self.handle.lock().unwrap();
         unsafe {
             let mut config_old: c_int = 0;
             let ptr = (&mut config_old) as *mut c_int;
