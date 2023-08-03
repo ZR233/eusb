@@ -49,24 +49,19 @@ impl Interface {
             dev_handle,
         })
     }
-
-    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) -> Result<TransferIn>{
+    pub fn bulk_transfer_in_request(&self, request: BulkTransferRequest)-> Result<TransferIn>{
         let transfer = Transfer::bulk(
             self,
-                request,
-                EndpointDirection::In,
-                &[],
-
+            request,
+            EndpointDirection::In,
+            &[],
         )?;
         unsafe {
             (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
-        let ti = TransferIn::from_base(transfer);
-        let t2 = ti.submit()?.await?;
-
-        Ok(t2)
+        Ok(TransferIn::from_base(transfer))
     }
-    pub async fn bulk_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<TransferOut> {
+    pub fn bulk_transfer_out_request(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<TransferOut> {
         let transfer = Transfer::bulk(
             self,
             request,
@@ -76,11 +71,33 @@ impl Interface {
         unsafe {
             (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
-        let t2 = TransferOut::from_base(transfer).submit()?.await?;
-        if t2.actual_length() != data.len() {
-            return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
+        Ok(TransferOut::from_base(transfer))
+    }
+    pub fn interrupt_transfer_in_request(&self, request: BulkTransferRequest)-> Result<TransferIn>{
+        let transfer = self.bulk_transfer_in_request(request)?;
+        unsafe {
+            (*transfer.base.as_ref().unwrap().ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
         }
-        Ok(t2)
+        Ok(transfer)
+    }
+    pub fn interrupt_transfer_out_request(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<TransferOut> {
+        let transfer = self.bulk_transfer_out_request(request, data)?;
+        unsafe {
+            (*transfer.base.as_ref().unwrap().ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
+        }
+        Ok(transfer)
+    }
+
+
+    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) ->Result<Vec<u8>>{
+        let t1 = self.bulk_transfer_in_request(request)?;
+        let t2 = t1.submit()?.await?;
+        Ok(Vec::from(t2.data()))
+    }
+    pub async fn bulk_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<usize> {
+        let t1 = self.bulk_transfer_out_request(request, data)?;
+        let t2 = t1.submit()?.await?;
+        Ok(t2.actual_length())
     }
 
     pub fn open_bulk_in_channel(
@@ -122,36 +139,14 @@ impl Interface {
     }
 
     pub async fn interrupt_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
-        let transfer = Transfer::bulk(
-            self,
-            request,
-            EndpointDirection::In,
-            &[],
-
-        )?;
-        unsafe {
-            (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
-        }
-        let t2 =  TransferIn::from_base(transfer).submit()?.await?;
-
+        let transfer = self.interrupt_transfer_in_request(request)?;
+        let t2 = transfer.submit()?.await?;
         Ok(Vec::from(t2.data()))
     }
-    pub async fn interrupt_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
-        let transfer = Transfer::bulk(
-            self,
-            request,
-            EndpointDirection::Out,
-            data,
-        )?;
-        unsafe {
-            (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
-        }
-        let t2 =  TransferOut::from_base(transfer).submit()?.await?;
-        if t2.actual_length() != data.len() {
-            return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
-        }
-        Ok(())
-
+    pub async fn interrupt_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<usize> {
+        let t1 = self.interrupt_transfer_out_request(request, data)?;
+        let t2 = t1.submit()?.await?;
+        Ok(t2.actual_length())
     }
 }
 

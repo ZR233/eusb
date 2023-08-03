@@ -1,6 +1,6 @@
 [package]
 name = "eusb"
-version = "0.0.1"
+version = "1.0.0"
 authors = ["zhour rui <zrufo747@outlook.com>"]
 description = "Rust library for accessing USB devices."
 license = "MIT"

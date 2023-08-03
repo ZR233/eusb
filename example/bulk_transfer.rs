@@ -37,11 +37,11 @@ async fn main() {
         let mut all = 0usize;
         let start = Instant::now();
         info!("开始");
-        let mut transfer = interface.bulk_transfer_in(BulkTransferRequest{
+        let mut transfer = interface.bulk_transfer_in_request(BulkTransferRequest{
             endpoint: 1,
             package_len: 262144,
             timeout: Default::default(),
-        }).await.unwrap();
+        }).unwrap();
 
         for _ in 0..1000 {
             transfer = transfer.submit().unwrap().await.unwrap();

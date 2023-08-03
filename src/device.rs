@@ -177,19 +177,7 @@ impl Device {
         Interface::new(dev_handle, index)
     }
 
-    // pub fn control_transfer(&self, request: ControlTransferRequest)->Result<Transfer>{
-    //     Transfer::control(
-    //         &self,
-    //         request,
-    //         EndpointDirection::In,
-    //         0,
-    //         &[]
-    //     )
-    // }
-
-
-
-    pub async fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) -> Result<Vec<u8>>{
+    pub fn control_transfer_in_request(&self, request: ControlTransferRequest, max_len: u16) -> Result<TransferIn>{
         let transfer = Transfer::control(
             &self,
             request,
@@ -197,11 +185,9 @@ impl Device {
             max_len,
             &[]
         )?;
-        let tran_new =  TransferIn::from_base(transfer).submit()?.await?;
-
-        Ok(Vec::from(tran_new.data()))
+        Ok(TransferIn::from_base(transfer))
     }
-    pub async fn control_transfer_out(&self, request: ControlTransferRequest, data: &[u8])-> Result<()> {
+    pub fn control_transfer_out_request(&self, request: ControlTransferRequest, data: &[u8])-> Result<TransferOut> {
         let transfer = Transfer::control(
             &self,
             request,
@@ -209,12 +195,18 @@ impl Device {
             0,
             data
         )?;
+        Ok(TransferOut::from_base(transfer))
+    }
 
-        let tran_new =  TransferOut::from_base(transfer).submit() ?.await?;
-        if tran_new.actual_length() != data.len() {
-            return  Err(Error::Io(format!("send {}, actual {}", data.len(), tran_new.actual_length())))
-        }
-        Ok(())
+    pub async fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) -> Result<Vec<u8>>{
+        let t1 = self.control_transfer_in_request(request, max_len)?;
+        let t2 = t1.submit()?.await?;
+        Ok(Vec::from(t2.data()))
+    }
+    pub async fn control_transfer_out(&self, request: ControlTransferRequest, data: &[u8])-> Result<usize> {
+        let transfer = self.control_transfer_out_request(request, data)?;
+        let tran_new =  transfer.submit()?.await?;
+        Ok(tran_new.actual_length())
     }
 }
 

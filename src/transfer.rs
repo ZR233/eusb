@@ -18,7 +18,7 @@ pub(crate) trait TransferWarp{
 }
 
 pub struct TransferIn{
-    base:Option<Transfer>
+    pub(crate) base:Option<Transfer>
 }
 
 impl TransferIn{
@@ -42,7 +42,7 @@ impl TransferIn{
 }
 
 pub struct TransferOut{
-    base:Option<Transfer>
+    pub(crate) base:Option<Transfer>
 }
 impl TransferOut{
     pub fn set_data(&mut self, src: &[u8]){
