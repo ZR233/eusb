@@ -19,8 +19,7 @@ path = "bulk_transfer.rs"
 
 
 [dependencies]
-libusb-src = {  path = "../libusb-src"  }
-eusb = {    path = "../eusb"    }
+eusb = {    path = "../eusb", version = "0.1.1"   }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
