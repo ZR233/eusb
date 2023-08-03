@@ -10,8 +10,6 @@ readme = "README.md"
 keywords = ["usb", "libusb", "hardware"]
 edition = "2021"
 
-#[workspace]
-#members = ["libusb-src", "example"]
 
 [dependencies]
 libusb-src = {path = "../libusb-src", version = "1.26"}

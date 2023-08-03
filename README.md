@@ -1,65 +1,29 @@
-# Libusb Rust Bindings
+EUsb
+===========
 
-The `eusb` crate provides easy way to communicate usb, with async fn.
+![Rust](https://github.com/ZR233/eusb/workflows/Rust/badge.svg)
 
-tested on ubuntu and windows
+Rust bindings for the [Libusb C-library](https://libusb.info/) for communicate with usb device.
 
-# example
-test use hackrf one.
+This repository includes three crates:
 
-```rust
-use rusb::prelude::*;
+- [![Crate](https://img.shields.io/crates/v/eusb.svg)](https://crates.io/crates/eusb)
+  [![docs.rs](https://docs.rs/eusb/badge.svg)](https://docs.rs/eusb)
+  `eusb`: A easy use async Rust lib. 
+- [![Crate](https://img.shields.io/crates/v/libusb-src.svg)](https://crates.io/crates/libusb-src)
+  [![docs.rs](https://docs.rs/libusb-src/badge.svg)](https://docs.rs/libusb-src)
+  `libusb-src`: A crate for compiling the Libusb library.
+- `example`: example usages.
 
-#[tokio::main]
-async fn main(){
-    let manager = UsbManager::new().unwrap();
-    let mut device = manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap();
-    println!("sn: {}", device.serial_number());
-    let device_descriptor = device.descriptor();
-    println!("{:?}", device_descriptor);
-    let configs = device.config_list().unwrap();
-    for config in configs {
-        println!("{}", config);
-    }
-    let mut request = ControlTransferRequest::default();
-    request.recipient = UsbControlRecipient::Device;
-    request.transfer_type = UsbControlTransferType::Vendor;
-    request.request = 15;
 
-    let start = Instant::now();
+Support platform
+--------------
 
-    let data = device.control_transfer_in(
-        request,
-        30,
-    ).await.unwrap();
-    let duration = start.elapsed();
 
-    let version = String::from_utf8(data).unwrap();
+| Linux | Windows | macOS | android |
+|:-----:|:-------:|:-----:|:-------:|
+|  ✔️   |   ✔️    |  ✔️   |   ✔️    |
 
-    println!("version: {} cost: {:?}", version, duration);
-
-    let interface = device.get_interface(0).unwrap();
-
-    let mut all = 0usize;
-    let start = Instant::now();
-    for _ in 0..1000 {
-        let data = interface.bulk_transfer_in(BulkTransferRequest{
-            endpoint: 1,
-            package_len: 262144,
-            timeout: Default::default(),
-        }).await.unwrap();
-        all += data.len();
-    }
-    let duration = Instant::now().duration_since(start);
-    let bits = (all) as f64;
-    let seconds = duration.as_secs_f64();
-    let mb = (bits / seconds) / 1_000_000.0;
-
-    println!("speed：{} MB/s", mb);
-}
-
-```
-
-# Cross Compile
-
-support windows linux and android, not test ios and mac.
+LICENSE
+--------
+See [LICENSE.md](./LICENSE.md)
