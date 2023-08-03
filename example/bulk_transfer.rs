@@ -44,7 +44,7 @@ async fn main() {
         }).await.unwrap();
 
         for _ in 0..1000 {
-            transfer = TransferBase::submit_wait(transfer).unwrap().await.unwrap();
+            transfer = TransferBase::submit(transfer).unwrap().await.unwrap();
             all += transfer.actual_length();
         }
         let duration = Instant::now().duration_since(start);

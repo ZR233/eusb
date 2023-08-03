@@ -188,7 +188,7 @@ impl Device {
             max_len,
             &[]
         )?;
-        let tran_new = transfer.submit_wait()?.await?;
+        let tran_new = transfer.submit()?.await?;
         let mut data = Vec::with_capacity(tran_new.actual_length());
         for i in LIBUSB_CONTROL_SETUP_SIZE..LIBUSB_CONTROL_SETUP_SIZE+tran_new.actual_length() {
             data.push(tran_new.buff[i]);
@@ -217,7 +217,7 @@ impl Device {
             data
         )?;
 
-        let tran_new = transfer.submit_wait()?.await?;
+        let tran_new = transfer.submit()?.await?;
         if tran_new.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), tran_new.actual_length())))
         }

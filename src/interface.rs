@@ -86,9 +86,9 @@ impl Interface {
 
         )?;
         unsafe {
-            (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
+            (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
-        let t2 = transfer.submit_wait()?.await?;
+        let t2 = transfer.submit()?.await?;
 
         Ok(t2)
     }
@@ -100,9 +100,9 @@ impl Interface {
             data,
         )?;
         unsafe {
-            (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
+            (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
-        let t2 = transfer.submit_wait()?.await?;
+        let t2 = transfer.submit()?.await?;
         if t2.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
         }
@@ -169,9 +169,9 @@ impl Interface {
 
         )?;
         unsafe {
-            (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
+            (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
         }
-        let t2 = transfer.submit_wait()?.await?;
+        let t2 = transfer.submit()?.await?;
 
         let mut data = Vec::with_capacity(t2.actual_length());
         for i in 0..t2.actual_length() {
@@ -196,9 +196,9 @@ impl Interface {
             data,
         )?;
         unsafe {
-            (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
+            (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
         }
-        let t2 = transfer.submit_wait()?.await?;
+        let t2 = transfer.submit()?.await?;
         if t2.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
         }

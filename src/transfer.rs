@@ -1,7 +1,6 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::ptr::null_mut;
-use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use futures::channel::mpsc::*;
 use futures::StreamExt;
@@ -11,46 +10,44 @@ use crate::error::*;
 use crate::device::Device;
 use crate::interface::{BulkTransferRequest, Interface};
 use pin_project::pin_project;
+use crate::libusb as p;
+
+
+
+
+
+
+
+
+
+
 
 
 pub struct TransferBase {
-    pub(crate) ptr: *mut libusb_transfer,
+    pub(crate) ptr: p::Transfer,
     pub(crate) buff: Vec<u8>,
-    result_callback: Arc<Mutex<dyn FnMut(Result<TransferBase>)>>,
     complete_send: Sender<Result<TransferBase>>,
     complete_signal: Option<Receiver<Result<TransferBase>>>
 }
 
-unsafe impl Send for TransferBase {}
-unsafe impl Sync for TransferBase {}
-
-
-struct LibusbTransfer(*mut libusb_transfer);
-unsafe impl Send for LibusbTransfer {}
-unsafe impl Sync for LibusbTransfer {}
-
+unsafe impl Send  for TransferBase{}
 
 pub type ResultFuture<T> = Pin<Box<dyn Future<Output=T> + Send>>;
 
 impl TransferBase {
     pub fn new(
-        iso_packets: usize,
+        iso_packets: u32,
         buff_size: usize,
     )->Result<Self>{
         let ptr = unsafe {
-            let r = libusb_alloc_transfer(iso_packets as _);
-            if r.is_null(){
-                return Err(Error::Other("alloc transfer fail".to_string()));
-            }
-            r
-        };
+            p::Transfer::new(iso_packets)
+        }?;
         let (mut tx, rx) = channel::<Result<TransferBase>>(1);
         Ok(Self{
             ptr,
             buff: vec![0; buff_size],
-            result_callback:Arc::new(Mutex::new(|_|{})),
             complete_send: tx,
-            complete_signal:  Some(rx)
+            complete_signal: Some(rx)
         })
     }
 
@@ -73,7 +70,7 @@ impl TransferBase {
                 s.buff[i+LIBUSB_CONTROL_SETUP_SIZE] = data_out[i];
             }
         }
-        s.set_complete_cb2();
+
         unsafe {
             let buf_ptr = s.buff.as_mut_ptr();
 
@@ -86,10 +83,10 @@ impl TransferBase {
                 data_in_len);
 
             libusb_fill_control_transfer(
-                s.ptr,
+                s.ptr.0,
                 device.get_handle()?,
                 buf_ptr,
-                Self::custom_cb,
+                Self::complete_cb,
                 null_mut(),
                 request.timeout.as_millis() as _,
             );
@@ -109,17 +106,17 @@ impl TransferBase {
                 s.buff[i]= data_out[i]
             }
         }
-        s.set_complete_cb2();
+
         unsafe {
             let buf_ptr = s.buff.as_mut_ptr();
 
             libusb_fill_bulk_transfer(
-                s.ptr,
+                s.ptr.0,
                 interface.dev_handle,
                 (request.endpoint as u32 | direction.to_libusb()) as u8,
                 buf_ptr,
                 request.package_len as _,
-                Self::custom_cb,
+                Self::complete_cb,
                 null_mut(),
                 request.timeout.as_millis() as _,
             );
@@ -127,12 +124,11 @@ impl TransferBase {
         Ok(s)
     }
 
-    extern "system"  fn custom_cb(data: *mut libusb_transfer){
+    extern "system"  fn complete_cb(data: *mut libusb_transfer){
         unsafe {
             let user_data_ptr = (*data).user_data;
 
             let mut user_data = Box::from_raw(user_data_ptr as  *mut UserData);
-            let cb = user_data.result_callback.clone();
 
             let result = match (*data).status {
                 LIBUSB_TRANSFER_COMPLETED => {
@@ -145,33 +141,24 @@ impl TransferBase {
                 LIBUSB_TRANSFER_NO_DEVICE => Err(Error::NoDevice),
                 LIBUSB_TRANSFER_ERROR |_ => Err(Error::Other("Unknown".to_string())),
             };
-
-            let mut cb = cb.lock().unwrap();
-            (cb)(result);
+            user_data.complete.try_send(result).unwrap();
         }
     }
 
-    pub fn submit(transfer: Self)->Result<()>{
-        unsafe {
-            let ptr = transfer.ptr;
-            let cb = transfer.result_callback.clone();
-            let user_data = Box::new(UserData{
-                transfer: Some(transfer),
-                result_callback: cb,
-            });
 
-            let p =  Box::into_raw(user_data);
-            (*ptr).user_data = p as _;
-            check_err(libusb_submit_transfer(ptr))?;
-        }
-        Ok(())
-    }
-
-    pub fn submit_wait(mut self)->Result<SubmitHandle>{
-        let inner = self.ptr;
+    pub fn submit(mut self) ->Result<SubmitHandle>{
+        let mut inner = self.ptr;
         let mut rx = self.complete_signal.take().unwrap();
-        TransferBase::submit(self)?;
-
+        let mut tx = self.complete_send.clone();
+        unsafe {
+            let user_data = Box::new(UserData {
+                transfer: Some(self),
+                complete: tx,
+            });
+            let p = Box::into_raw(user_data);
+            inner.set_user_data(p as _);
+            inner.submit()?;
+        }
         Ok(SubmitHandle{
             future: Box::pin(async move{
                 let mut r = rx.next().await.ok_or(Error::NotFound
@@ -179,56 +166,13 @@ impl TransferBase {
                 r.complete_signal = Some(rx);
                 Ok(r)
             }),
-            inner: LibusbTransfer(inner)
+            inner
         })
-        //
-        // Ok(Box::pin(async move{
-        //     let mut r = rx.next().await.ok_or(Error::NotFound
-        //     )??;
-        //     r.complete_signal = Some(rx);
-        //     Ok(r)
-        // }))
-    }
-
-
-    #[allow(unused)]
-    pub fn cancel(&self)->Result<()>{
-        unsafe {
-            check_err(libusb_cancel_transfer(self.ptr))?;
-        }
-        Ok(())
-    }
-
-    pub fn set_callback<F>(&mut self, callback: F)
-        where F: FnMut (Result<TransferBase>), F: 'static{
-        self.result_callback = Arc::new(Mutex::new(callback));
-    }
-
-    pub(crate) fn set_complete_cb(&mut self)->Receiver<Result<TransferBase>>{
-
-        let (mut tx, rx) = channel::<Result<TransferBase>>(1);
-
-        let callback = move|result|{
-            let _ = tx.try_send(result);
-        };
-
-        self.set_callback(callback);
-
-        rx
-    }
-    pub(crate) fn set_complete_cb2(&mut self){
-        let mut tx = self.complete_send.clone();
-
-        let callback = move|result|{
-            let _ = tx.try_send(result);
-        };
-
-        self.set_callback(callback);
     }
 
     pub fn actual_length(&self)->usize{
         (unsafe {
-            (*self.ptr).actual_length
+            (*self.ptr.0).actual_length
         }) as usize
     }
 }
@@ -237,13 +181,13 @@ impl TransferBase {
 pub struct SubmitHandle {
     #[pin]
     future: ResultFuture<Result<TransferBase>>,
-    inner: LibusbTransfer
+    inner: p::Transfer
 }
 
 impl SubmitHandle {
-    pub fn cancel(&self){
+    pub fn cancel(&self)->Result<()>{
         unsafe {
-            libusb_cancel_transfer(self.inner.0);
+            self.inner.cancel()
         }
     }
 }
@@ -261,55 +205,19 @@ impl Future for SubmitHandle{
 }
 
 
-
-
-
-struct UserData{
+struct UserData {
     transfer: Option<TransferBase>,
-    result_callback: Arc<Mutex<dyn FnMut(Result<TransferBase>)>>,
+    complete: Sender<Result<TransferBase>>,
 }
+
 
 
 impl Drop for TransferBase {
     fn drop(&mut self) {
         unsafe {
-            libusb_free_transfer(self.ptr)
+            let _ = self.ptr.cancel();
         }
     }
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-pub struct TransferIn{
-    pub(crate) transfer: Option<TransferBase>,
-}
-
-impl TransferIn{
-    pub async fn repeat(&mut self)->Result<Self>{
-        let mut transfer = self.transfer.take().unwrap();
-        let r = transfer.submit_wait()?.await?;
-
-        Ok(Self{ transfer: Some(r) })
-    }
-
-    pub fn data(&self)->&[u8]{
-        match &self.transfer {
-            None => { &[] }
-            Some(transfer) => {
-                let len = transfer.actual_length();
-                let buff = transfer.buff.as_slice();
-                &buff[0..len]
-            }
-        }
-    }
-}
