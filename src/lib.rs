@@ -1,5 +1,5 @@
 mod define;
-mod error;
+pub mod error;
 mod libusb;
 mod transfer;
 mod interface;

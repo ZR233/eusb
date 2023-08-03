@@ -3,8 +3,9 @@ use log::{info, LevelFilter};
 use tokio::time::Instant;
 use eusb::prelude::*;
 
+
 #[tokio::main]
-async fn main() {
+async fn main(){
     let _ = env_logger::builder().filter_level(LevelFilter::Debug).is_test(true).try_init();
     {
         let manager = UsbManager::init_default().unwrap();
