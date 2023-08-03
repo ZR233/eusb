@@ -3,6 +3,7 @@ use log::{info, LevelFilter};
 use tokio::select;
 use tokio::time::Instant;
 use eusb::prelude::*;
+use futures::StreamExt;
 
 #[tokio::main]
 async fn main(){
