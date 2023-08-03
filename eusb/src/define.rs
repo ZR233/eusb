@@ -50,7 +50,7 @@ pub struct  ControlTransferRequest{
     pub timeout: Duration,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub  enum EndpointDirection{
     In, Out
 }
@@ -78,10 +78,17 @@ impl Default for ControlTransferRequest {
     }
 }
 
+pub (crate) struct  Libusb(pub(crate) *mut libusb_context);
+unsafe impl Send for Libusb{}
+unsafe impl Sync for Libusb{}
+
 pub(crate) struct EventController{
     pub(crate) ctx: Mutex<EventControllerCtx>,
     pub(crate) cond: Condvar,
+    pub(crate) libusb: Libusb,
 }
+
+
 #[derive(Clone, Debug, Copy)]
 pub(crate) struct EventControllerCtx{
     pub(crate) device_count: usize,
@@ -89,13 +96,14 @@ pub(crate) struct EventControllerCtx{
 }
 
 impl EventController {
-    pub(crate) fn new()->Self{
+    pub(crate) fn new(libusb: *mut libusb_context)->Self{
         Self{
             ctx: Mutex::new(EventControllerCtx{
                 device_count: 0,
                 is_exit: false,
             }),
-            cond: Condvar::new()
+            cond: Condvar::new(),
+            libusb:Libusb(libusb),
         }
     }
 
@@ -128,26 +136,4 @@ impl DeviceDescriptor {
     pub fn id_vendor(&self)-> u16{ self.data.idVendor}
     pub fn id_product(&self)-> u16{ self.data.idProduct}
     pub fn num_configurations(&self)-> u8{ self.data.bNumConfigurations}
-}
-
-pub struct TransferCancelToken{
-    ptr: *mut libusb_transfer
-}
-unsafe impl Send for TransferCancelToken {}
-unsafe impl Sync for TransferCancelToken {}
-
-impl TransferCancelToken {
-    pub(crate) fn new(transfer: *mut libusb_transfer)->Self{
-        Self{
-            ptr: transfer
-        }
-    }
-
-    pub fn cancel(&self){
-        unsafe {
-            if !self.ptr.is_null(){
-                libusb_cancel_transfer(self.ptr);
-            }
-        }
-    }
 }

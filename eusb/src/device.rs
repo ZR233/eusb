@@ -1,22 +1,19 @@
-use std::ffi::{c_int, c_uchar};
+use std::ffi::{c_int};
 use std::fmt::{Debug, Display, Formatter};
-use std::future::Future;
-use std::pin::Pin;
 use std::ptr::{null_mut, slice_from_raw_parts};
-use std::sync::{Arc, Mutex};
+use std::sync::{Mutex};
 use log::debug;
 use libusb_src::*;
 use crate::define::*;
 use crate::error::*;
 use crate::interface::Interface;
-use crate::transfer;
-use futures::StreamExt;
-use crate::transfer::{ResultFuture, ResultIn, Transfer};
+use crate::prelude::{TransferIn, UsbManager};
+use crate::transfer::{Transfer, TransferOut, TransferWarp};
 
 pub struct Device {
     pub(crate) dev: *mut libusb_device,
     pub(crate) handle: Mutex<*mut libusb_device_handle>,
-    event_controller: Arc<EventController>
+    manager: UsbManager
 }
 
 #[derive(Debug)]
@@ -30,12 +27,13 @@ pub enum UsbSpeed {
 }
 
 unsafe impl Send for Device {}
+
 unsafe impl Sync for Device {}
 
 impl Device {
     pub(crate) fn new(
         dev: *mut libusb_device,
-        event_controller: Arc<EventController>
+        manager: &UsbManager
     ) -> Self {
         unsafe {
             libusb_ref_device(dev);
@@ -44,7 +42,7 @@ impl Device {
         Self {
             dev,
             handle: Mutex::new(null_mut()),
-            event_controller
+            manager: manager.clone()
         }
     }
     pub fn descriptor(&self) -> DeviceDescriptor {
@@ -132,7 +130,7 @@ impl Device {
             if g.is_null() {
                 let r = libusb_open(self.dev, &mut *g);
                 check_err(r)?;
-                self.event_controller.open_device();
+                self.manager.ctx.event_controller.open_device();
 
                 libusb_set_auto_detach_kernel_driver(*g, 1);
             }
@@ -178,28 +176,8 @@ impl Device {
         let dev_handle = self.get_handle()?;
         Interface::new(dev_handle, index)
     }
-    // pub fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) ->  ResultIn{
-    //
-    //
-    //     ResultIn{
-    //         future: Box::pin(async move{
-    //             let transfer = Transfer::control(
-    //                 &self,
-    //                 request,
-    //                 EndpointDirection::In,
-    //                 max_len,
-    //                 &[]
-    //             )?;
-    //             let tran_new = Transfer::submit_wait(transfer)?.await?;
-    //             let mut data = Vec::with_capacity(tran_new.actual_length());
-    //             for i in LIBUSB_CONTROL_SETUP_SIZE..LIBUSB_CONTROL_SETUP_SIZE+tran_new.actual_length() {
-    //                 data.push(tran_new.buff[i]);
-    //             }
-    //             Ok(data)
-    //         })
-    //     }
-    // }
-    pub async fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) -> Result<Vec<u8>>{
+
+    pub fn control_transfer_in_request(&self, request: ControlTransferRequest, max_len: u16) -> Result<TransferIn>{
         let transfer = Transfer::control(
             &self,
             request,
@@ -207,27 +185,9 @@ impl Device {
             max_len,
             &[]
         )?;
-        let tran_new = Transfer::submit_wait(transfer)?.await?;
-        let mut data = Vec::with_capacity(tran_new.actual_length());
-        for i in LIBUSB_CONTROL_SETUP_SIZE..LIBUSB_CONTROL_SETUP_SIZE+tran_new.actual_length() {
-            data.push(tran_new.buff[i]);
-        }
-        Ok(data)
-
-        // let buf_len = LIBUSB_CONTROL_SETUP_SIZE + max_len as usize;
-        // let mut buf = vec![0 as c_uchar; buf_len];
-        // let actual_length = self.control_transfer(
-        //     request,
-        //     EndpointDirection::In,
-        //     buf.as_mut_slice(),
-        // ).await?;
-        // let mut data = Vec::with_capacity(actual_length);
-        // for i in LIBUSB_CONTROL_SETUP_SIZE..LIBUSB_CONTROL_SETUP_SIZE+actual_length {
-        //     data.push(buf[i] as _);
-        // }
-        // Ok(data)
+        Ok(TransferIn::from_base(transfer))
     }
-    pub async fn control_transfer_out(&self, request: ControlTransferRequest, data: &[u8])-> Result<()> {
+    pub fn control_transfer_out_request(&self, request: ControlTransferRequest, data: &[u8])-> Result<TransferOut> {
         let transfer = Transfer::control(
             &self,
             request,
@@ -235,78 +195,19 @@ impl Device {
             0,
             data
         )?;
-
-        let tran_new = Transfer::submit_wait(transfer)?.await?;
-        if tran_new.actual_length() != data.len() {
-            return  Err(Error::Io(format!("send {}, actual {}", data.len(), tran_new.actual_length())))
-        }
-        Ok(())
-
-        // let mut buf = Vec::with_capacity(LIBUSB_CONTROL_SETUP_SIZE+ data.len());
-        // for _ in 0..LIBUSB_CONTROL_SETUP_SIZE {
-        //     buf.push(0);
-        // }
-        // for i in 0..data.len(){
-        //     buf.push(data[i] as _);
-        // }
-        //
-        // let actual_length = self.control_transfer(
-        //     request,
-        //     EndpointDirection::Out,
-        //     buf.as_mut_slice(),
-        // ).await?;
-        //
-        // if actual_length != data.len() {
-        //     return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
-        // }
-        // Ok(())
+        Ok(TransferOut::from_base(transfer))
     }
-    // async fn control_transfer(
-    //     &self,
-    //     request: ControlTransferRequest,
-    //     direction: EndpointDirection,
-    //     data_len: usize,
-    // ) -> Result<usize> {
-    //
-    //     let mut transfer = transfer::Transfer::control(
-    //         &self,
-    //         request,
-    //         direction,
-    //         data_len
-    //     )?;
-    //     let mut rx = transfer.set_complete_cb();
-    //
-    //     transfer::Transfer::submit(transfer)?;
-    //
-    //     let r = rx.next().await.ok_or(Error::NotFound
-    //     )??;
-    //
-    //     Ok(r.actual_length())
-    // }
-    // fn control_transfer(
-    //     &self,
-    //     request: ControlTransferRequest,
-    //     direction: EndpointDirection,
-    //     buf: &mut [u8],
-    // ) -> Pin<Box<dyn Future<Output=Result<usize>> + Send>>  {
-    //
-    //     let mut transfer = transfer::Transfer::control(
-    //         &self,
-    //         request,
-    //         direction,
-    //         buf,
-    //     )?;
-    //     let mut rx = transfer.set_complete_cb();
-    //
-    //     transfer::Transfer::submit(transfer)?;
-    //
-    //    Pin::new( Box::new(async move{
-    //         let r = rx.next().await.ok_or(Error::NotFound
-    //         )??;
-    //
-    //         Ok(r.actual_length())
-    //     }))
-    // }
+
+    pub async fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) -> Result<Vec<u8>>{
+        let t1 = self.control_transfer_in_request(request, max_len)?;
+        let t2 = t1.submit()?.await?;
+        Ok(Vec::from(t2.data()))
+    }
+    pub async fn control_transfer_out(&self, request: ControlTransferRequest, data: &[u8])-> Result<usize> {
+        let transfer = self.control_transfer_out_request(request, data)?;
+        let tran_new =  transfer.submit()?.await?;
+        Ok(tran_new.actual_length())
+    }
 }
 
 
@@ -326,7 +227,7 @@ impl Drop for Device {
             libusb_unref_device(self.dev);
             let handle = self.handle.lock().unwrap();
             if !handle.is_null() {
-                self.event_controller.close_device();
+                self.manager.ctx.event_controller.close_device();
                 libusb_close(*handle);
             }
             debug!("Device closed");

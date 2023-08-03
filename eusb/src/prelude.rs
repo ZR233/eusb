@@ -1,6 +1,8 @@
 pub use crate::core::*;
 pub use crate::define::*;
 pub use crate::device::*;
+pub use crate::interface::*;
+pub use crate::transfer::*;
 
 #[cfg(test)]
 mod test {
@@ -22,7 +24,7 @@ mod test {
     #[tokio::test]
     async fn test_device() {
         init();
-        let manager = UsbManager::new().unwrap();
+        let manager = UsbManager::init_default().unwrap();
         let device = get_hackrf(&manager).await;
         debug!("sn: {}", device.serial_number());
         let device_descriptor = device.descriptor();
@@ -37,7 +39,7 @@ mod test {
     async fn test_control_transfer_in() {
         init();
         {
-            let manager = UsbManager::new().unwrap();
+            let manager = UsbManager::init_default().unwrap();
             let device = get_hackrf(&manager).await;
 
             println!("{} speed: {:?}", device, device.speed());
@@ -72,7 +74,7 @@ mod test {
     #[tokio::test]
     async fn test_control_transfer_out() {
         {
-            let manager = UsbManager::new().unwrap();
+            let manager = UsbManager::init_default().unwrap();
             let device = get_hackrf(&manager).await;
 
             let mut request = ControlTransferRequest::default();
@@ -95,7 +97,7 @@ mod test {
         init();
 
         {
-            let manager = UsbManager::new().unwrap();
+            let manager = UsbManager::init_default().unwrap();
             let device = get_hackrf(&manager).await;
             let mut request = ControlTransferRequest::default();
             request.recipient = UsbControlRecipient::Device;
@@ -177,63 +179,6 @@ mod test {
             info!("send stop");
             stop_tx.send(1).unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;
-        }
-
-
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        info!("finish");
-    }
-
-
-
-    #[tokio::test]
-    async fn test_bulk_transfer_in() {
-        init();
-        tokio::time::sleep();
-        {
-            let manager = UsbManager::new().unwrap();
-            let device = get_hackrf(&manager).await;
-            let mut request = ControlTransferRequest::default();
-            request.recipient = UsbControlRecipient::Device;
-            request.transfer_type = UsbControlTransferType::Vendor;
-            request.request = 1;
-            request.value = 0;
-
-            device.control_transfer_out(
-                request,
-                &[0; 0],
-            ).await.unwrap();
-
-            let mut request = ControlTransferRequest::default();
-            request.recipient = UsbControlRecipient::Device;
-            request.transfer_type = UsbControlTransferType::Vendor;
-            request.request = 1;
-            request.value = 1;
-
-            device.control_transfer_out(
-                request,
-                &[0; 0],
-            ).await.unwrap();
-
-            let interface = device.get_interface(0).unwrap();
-
-            let mut all = 0usize;
-            let start = Instant::now();
-            for _ in 0..1000 {
-                let data = interface.bulk_transfer_in(BulkTransferRequest{
-                    endpoint: 1,
-                    package_len: 262144,
-                    timeout: Default::default(),
-                }).await.unwrap();
-                all += data.len();
-            }
-            let duration = Instant::now().duration_since(start);
-            let bits = (all) as f64;
-            let seconds = duration.as_secs_f64();
-            let mb = (bits / seconds) / 1_000_000.0;
-
-            info!("速度：{} MB/s", mb);
-            info!("接收停止");
         }
 
 
