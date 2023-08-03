@@ -7,7 +7,7 @@ use eusb::prelude::*;
 async fn main() {
     let _ = env_logger::builder().filter_level(LevelFilter::Debug).is_test(true).try_init();
     {
-        let manager = UsbManager::new().unwrap();
+        let manager = UsbManager::init_default().unwrap();
         let mut device = manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap();
 
         println!("{} speed: {:?}", device, device.speed());

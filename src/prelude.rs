@@ -1,6 +1,8 @@
 pub use crate::core::*;
 pub use crate::define::*;
 pub use crate::device::*;
+pub use crate::interface::*;
+pub use crate::transfer::*;
 
 #[cfg(test)]
 mod test {
@@ -22,7 +24,7 @@ mod test {
     #[tokio::test]
     async fn test_device() {
         init();
-        let manager = UsbManager::new().unwrap();
+        let manager = UsbManager::init_default().unwrap();
         let device = get_hackrf(&manager).await;
         debug!("sn: {}", device.serial_number());
         let device_descriptor = device.descriptor();
@@ -37,7 +39,7 @@ mod test {
     async fn test_control_transfer_in() {
         init();
         {
-            let manager = UsbManager::new().unwrap();
+            let manager = UsbManager::init_default().unwrap();
             let device = get_hackrf(&manager).await;
 
             println!("{} speed: {:?}", device, device.speed());
@@ -72,7 +74,7 @@ mod test {
     #[tokio::test]
     async fn test_control_transfer_out() {
         {
-            let manager = UsbManager::new().unwrap();
+            let manager = UsbManager::init_default().unwrap();
             let device = get_hackrf(&manager).await;
 
             let mut request = ControlTransferRequest::default();
@@ -95,7 +97,7 @@ mod test {
         init();
 
         {
-            let manager = UsbManager::new().unwrap();
+            let manager = UsbManager::init_default().unwrap();
             let device = get_hackrf(&manager).await;
             let mut request = ControlTransferRequest::default();
             request.recipient = UsbControlRecipient::Device;
@@ -190,7 +192,7 @@ mod test {
     async fn test_bulk_transfer_in() {
         init();
         {
-            let manager = UsbManager::new().unwrap();
+            let manager = UsbManager::init_default().unwrap();
             let device = get_hackrf(&manager).await;
             let mut request = ControlTransferRequest::default();
             request.recipient = UsbControlRecipient::Device;
@@ -224,7 +226,7 @@ mod test {
                     package_len: 262144,
                     timeout: Default::default(),
                 }).await.unwrap();
-                all += data.len();
+                all += data.actual_length();
             }
             let duration = Instant::now().duration_since(start);
             let bits = (all) as f64;

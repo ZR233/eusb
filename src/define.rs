@@ -78,10 +78,17 @@ impl Default for ControlTransferRequest {
     }
 }
 
+pub (crate) struct  Libusb(pub(crate) *mut libusb_context);
+unsafe impl Send for Libusb{}
+unsafe impl Sync for Libusb{}
+
 pub(crate) struct EventController{
     pub(crate) ctx: Mutex<EventControllerCtx>,
     pub(crate) cond: Condvar,
+    pub(crate) libusb: Libusb,
 }
+
+
 #[derive(Clone, Debug, Copy)]
 pub(crate) struct EventControllerCtx{
     pub(crate) device_count: usize,
@@ -89,13 +96,14 @@ pub(crate) struct EventControllerCtx{
 }
 
 impl EventController {
-    pub(crate) fn new()->Self{
+    pub(crate) fn new(libusb: *mut libusb_context)->Self{
         Self{
             ctx: Mutex::new(EventControllerCtx{
                 device_count: 0,
                 is_exit: false,
             }),
-            cond: Condvar::new()
+            cond: Condvar::new(),
+            libusb:Libusb(libusb),
         }
     }
 

@@ -1,84 +1,133 @@
 use std::mem;
-use std::ptr::{slice_from_raw_parts};
-use std::sync::Arc;
+use std::ptr::{null_mut, slice_from_raw_parts};
+use std::sync::{Arc};
 use log::debug;
 use crate::error::*;
 use libusb_src::*;
 use crate::define::*;
 use crate::device::*;
 
+#[derive(Clone)]
 pub struct UsbManager{
-    context:  *mut libusb_context,
-    event_controller: Arc<EventController>
+    pub(crate) ctx: Arc<Context>,
+}
+
+pub(crate) struct Context{
+    pub(crate) context: LibusbContext,
+    pub(crate) event_controller: Arc<EventController>
+}
+
+pub(crate) struct LibusbContext(pub(crate) *mut libusb_context);
+unsafe impl Send for LibusbContext{}
+unsafe impl Sync for LibusbContext{}
+
+impl LibusbContext {
+    fn new(mut ptr:  *mut libusb_context) ->Result<Self>{
+        unsafe {
+            let r = libusb_init(&mut ptr);
+            check_err(r)?;
+            Ok(Self(ptr))
+        }
+    }
+}
+impl Drop for LibusbContext {
+    fn drop(&mut self) {
+        unsafe {
+            libusb_exit(self.0)
+        }
+    }
+}
+
+pub struct UsbOption{
+    ptr: *mut libusb_context
+}
+
+impl UsbOption {
+
+    #[cfg(windows)]
+    pub fn use_usbdk(&mut self)-> Result<&mut Self> {
+        unsafe {
+            let r = libusb_set_option(self.ptr, LIBUSB_OPTION_USE_USBDK);
+            check_err(r)?;
+        }
+        Ok(self)
+    }
+
+    #[cfg(all(not(target_os = "android"), unix))]
+    pub fn no_device_discovery(&mut self)-> Result<&mut Self>{
+        unsafe {
+            let r = libusb_set_option(self.ptr, LIBUSB_OPTION_NO_DEVICE_DISCOVERY);
+            check_err(r)?;
+        }
+        Ok(self)
+    }
+
+    pub fn init(&self)->Result<UsbManager>{
+        UsbManager::from_libusb(self.ptr)
+    }
 }
 
 
-unsafe  impl Send for UsbManager{}
-unsafe impl Sync for UsbManager{}
-
-struct Context(*mut libusb_context);
-unsafe impl Send for Context{}
-
-
 impl UsbManager {
-    pub fn new()->Result<Self>{
-        let mut context = mem::MaybeUninit::<*mut libusb_context>::uninit();
+    pub fn builder()->UsbOption{
+        return UsbOption{ ptr: null_mut() }
+    }
+    fn from_libusb(libusb: *mut libusb_context) -> Result<Self>{
+        let libusb_ctx = LibusbContext::new(libusb)?;
 
-        let context = unsafe {
-            let r = libusb_init(context.as_mut_ptr());
-            check_err(r)?;
-            context.assume_init()
+        let s = Self{
+            ctx: Arc::new(Context{
+                context: libusb_ctx,
+                event_controller: Arc::new(EventController::new(libusb)),
+            }),
         };
 
-        let event_controller =Arc::new(EventController::new());
-        {
-            let context = Context(context);
-            let event_controller = event_controller.clone();
+        s.work_event();
+        Ok(s)
+    }
 
-                std::thread::spawn(move || {
-                    let ptr = context;
-                    let controller = event_controller;
-                    let mut ctx = {
-                        controller.ctx.lock().unwrap().clone()
-                    };
+    fn work_event(&self){
+        let con = self.ctx.event_controller.clone();
 
-                    unsafe {
-                        while !ctx.is_exit{
-                            // debug!("ctx: {:?}", ctx);
-                            if ctx.device_count>0 {
-                                // debug!("wait even");
-                                libusb_handle_events(ptr.0);
-                                // debug!("even ok");
-                                ctx = {
-                                    controller.ctx.lock().unwrap().clone()
-                                };
-                            }else{
-                                // debug!("wait cvar");
-                                let mut g = controller.ctx.lock().unwrap();
-                                g = controller.cond.wait(g).unwrap();
-                                // std::thread::sleep(Duration::from_millis(100));
-                                ctx = g.clone();
-                                // debug!("cond ok");
-                            }
-                        }
-                        libusb_exit(ptr.0);
-                        debug!("event_finish");
+        std::thread::spawn(move || {
+
+            let mut ctx ={
+                con.ctx.lock().unwrap().clone()
+            };
+
+            unsafe {
+                while !ctx.is_exit{
+                    // debug!("ctx: {:?}", ctx);
+                    if ctx.device_count > 0 {
+                        // debug!("wait even");
+                        libusb_handle_events(con.libusb.0);
+                        // debug!("even ok");
+                        ctx = { con.ctx.lock().unwrap().clone() }
+                    }else{
+                        // debug!("wait cvar");
+                        let mut g = con.ctx.lock().unwrap();
+                        g = con.cond.wait(g).unwrap();
+                        ctx = g.clone();
+                        // debug!("cvar ok");
                     }
-                });
+                }
+                libusb_exit(con.libusb.0);
+                // debug!("event_finish");
+            }
+        });
 
-        }
+    }
 
-        Ok(Self{
-            context,
-            event_controller
-        })
+
+    pub fn init_default()->Result<Self>{
+        Self::builder().init()
     }
 
     pub fn device_list(&self)->Result<DeviceList>{
 
         let list = unsafe {
             let mut devs_raw = mem::MaybeUninit::<*const *mut libusb_device>::uninit();
-            let cnt = libusb_get_device_list(self.context, devs_raw.as_mut_ptr());
+            let cnt = libusb_get_device_list(self.ctx.context.0, devs_raw.as_mut_ptr());
             check_err(cnt as _)?;
 
             let devs_raw = devs_raw.assume_init();
@@ -86,7 +135,7 @@ impl UsbManager {
                 ptr: devs_raw,
                 i: 0,
                 length: cnt as _,
-                event_controller: self.event_controller.clone()
+                manager: self.clone()
             }
         };
 
@@ -106,7 +155,7 @@ impl UsbManager {
 
 }
 
-impl Drop for UsbManager {
+impl Drop for Context {
     fn drop(&mut self) {
         self.event_controller.exit();
     }
@@ -116,7 +165,7 @@ pub struct  DeviceList{
     ptr: *const *mut libusb_device,
     i: usize,
     length: usize,
-    event_controller: Arc<EventController>
+    manager: UsbManager
 }
 
 impl Iterator for DeviceList{
@@ -131,7 +180,7 @@ impl Iterator for DeviceList{
                 return None;
             }
 
-            Device::new(dev, self.event_controller.clone())
+            Device::new(dev, &self.manager)
         };
 
         self.i+=1;
@@ -152,10 +201,19 @@ impl Drop for DeviceList {
 #[cfg(test)]
 mod test{
     use crate::core::UsbManager;
-
+    #[test]
+    fn test_device_option() {
+        let manager = UsbManager::builder()
+            .no_device_discovery().unwrap().init().unwrap();
+        let list = manager.device_list().unwrap();
+        for x in list {
+            let sp = x.speed();
+            println!("{} speed: {:?}", x, sp);
+        }
+    }
     #[test]
     fn test_device_list() {
-        let manager = UsbManager::new().unwrap();
+        let manager = UsbManager::init_default().unwrap();
         let list = manager.device_list().unwrap();
         for x in list {
             let sp = x.speed();
@@ -165,7 +223,7 @@ mod test{
 
     #[test]
     fn test_device_pid_vid() {
-        let manager = UsbManager::new().unwrap();
+        let manager = UsbManager::init_default().unwrap();
         let device = manager.open_device_with_vid_pid(0x1d50,0x6089).unwrap();
 
         println!("{} speed: {:?}", device, device.speed());

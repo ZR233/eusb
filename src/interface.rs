@@ -7,7 +7,7 @@ use log::{debug, warn};
 use libusb_src::*;
 use crate::define::EndpointDirection;
 use crate::error::*;
-use crate::transfer::Transfer;
+use crate::transfer::TransferBase;
 
 
 pub struct  Interface{
@@ -77,8 +77,8 @@ impl Interface {
     //
     //     Ok(r.actual_length())
     // }
-    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
-        let mut transfer = Transfer::bulk(
+    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) -> Result<TransferBase>{
+        let mut transfer = TransferBase::bulk(
             self,
                 request,
                 EndpointDirection::In,
@@ -88,25 +88,12 @@ impl Interface {
         unsafe {
             (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
-        let t2 = Transfer::submit_wait(transfer)?.await?;
+        let t2 = transfer.submit_wait()?.await?;
 
-        let mut data = Vec::with_capacity(t2.actual_length());
-        for i in 0..t2.actual_length() {
-            data.push(t2.buff[i]);
-        }
-        Ok(data)
-        // let mut buf = vec![0u8; request.package_len as _];
-        // let actual_length = self.bulk_transfer(
-        //     request,
-        //     EndpointDirection::In,
-        //     buf.as_mut_slice(),
-        //     LIBUSB_TRANSFER_TYPE_BULK
-        // ).await?;
-        // buf.resize(actual_length, 0);
-        // Ok(buf)
+        Ok(t2)
     }
     pub async fn bulk_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
-        let mut transfer = Transfer::bulk(
+        let mut transfer = TransferBase::bulk(
             self,
             request,
             EndpointDirection::Out,
@@ -115,7 +102,7 @@ impl Interface {
         unsafe {
             (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
-        let t2 = Transfer::submit_wait(transfer)?.await?;
+        let t2 = transfer.submit_wait()?.await?;
         if t2.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
         }
@@ -174,7 +161,7 @@ impl Interface {
     }
 
     pub async fn interrupt_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
-        let mut transfer = Transfer::bulk(
+        let mut transfer = TransferBase::bulk(
             self,
             request,
             EndpointDirection::In,
@@ -184,7 +171,7 @@ impl Interface {
         unsafe {
             (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
         }
-        let t2 = Transfer::submit_wait(transfer)?.await?;
+        let t2 = transfer.submit_wait()?.await?;
 
         let mut data = Vec::with_capacity(t2.actual_length());
         for i in 0..t2.actual_length() {
@@ -202,7 +189,7 @@ impl Interface {
         // Ok(buf)
     }
     pub async fn interrupt_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
-        let mut transfer = Transfer::bulk(
+        let mut transfer = TransferBase::bulk(
             self,
             request,
             EndpointDirection::Out,
@@ -211,7 +198,7 @@ impl Interface {
         unsafe {
             (*transfer.ptr).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
         }
-        let t2 = Transfer::submit_wait(transfer)?.await?;
+        let t2 = transfer.submit_wait()?.await?;
         if t2.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
         }

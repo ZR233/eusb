@@ -11,12 +11,13 @@ use crate::error::*;
 use crate::interface::Interface;
 use crate::transfer;
 use futures::StreamExt;
-use crate::transfer::{ResultFuture, Transfer};
+use crate::prelude::UsbManager;
+use crate::transfer::{ResultFuture, TransferBase};
 
 pub struct Device {
     pub(crate) dev: *mut libusb_device,
     pub(crate) handle: Mutex<*mut libusb_device_handle>,
-    event_controller: Arc<EventController>
+    manager: UsbManager
 }
 
 #[derive(Debug)]
@@ -36,7 +37,7 @@ unsafe impl Sync for Device {}
 impl Device {
     pub(crate) fn new(
         dev: *mut libusb_device,
-        event_controller: Arc<EventController>
+        manager: &UsbManager
     ) -> Self {
         unsafe {
             libusb_ref_device(dev);
@@ -45,7 +46,7 @@ impl Device {
         Self {
             dev,
             handle: Mutex::new(null_mut()),
-            event_controller
+            manager: manager.clone()
         }
     }
     pub fn descriptor(&self) -> DeviceDescriptor {
@@ -133,7 +134,7 @@ impl Device {
             if g.is_null() {
                 let r = libusb_open(self.dev, &mut *g);
                 check_err(r)?;
-                self.event_controller.open_device();
+                self.manager.ctx.event_controller.open_device();
 
                 libusb_set_auto_detach_kernel_driver(*g, 1);
             }
@@ -180,14 +181,14 @@ impl Device {
         Interface::new(dev_handle, index)
     }
     pub async fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) -> Result<Vec<u8>>{
-        let transfer = Transfer::control(
+        let transfer = TransferBase::control(
             &self,
             request,
             EndpointDirection::In,
             max_len,
             &[]
         )?;
-        let tran_new = Transfer::submit_wait(transfer)?.await?;
+        let tran_new = transfer.submit_wait()?.await?;
         let mut data = Vec::with_capacity(tran_new.actual_length());
         for i in LIBUSB_CONTROL_SETUP_SIZE..LIBUSB_CONTROL_SETUP_SIZE+tran_new.actual_length() {
             data.push(tran_new.buff[i]);
@@ -208,7 +209,7 @@ impl Device {
         // Ok(data)
     }
     pub async fn control_transfer_out(&self, request: ControlTransferRequest, data: &[u8])-> Result<()> {
-        let transfer = Transfer::control(
+        let transfer = TransferBase::control(
             &self,
             request,
             EndpointDirection::Out,
@@ -216,7 +217,7 @@ impl Device {
             data
         )?;
 
-        let tran_new = Transfer::submit_wait(transfer)?.await?;
+        let tran_new = transfer.submit_wait()?.await?;
         if tran_new.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), tran_new.actual_length())))
         }
@@ -306,7 +307,7 @@ impl Drop for Device {
             libusb_unref_device(self.dev);
             let handle = self.handle.lock().unwrap();
             if !handle.is_null() {
-                self.event_controller.close_device();
+                self.manager.ctx.event_controller.close_device();
                 libusb_close(*handle);
             }
             debug!("Device closed");
