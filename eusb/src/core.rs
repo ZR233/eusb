@@ -200,6 +200,7 @@ impl Drop for DeviceList {
 #[cfg(test)]
 mod test{
     use crate::core::UsbManager;
+    #[cfg(not(windows))]
     #[test]
     fn test_device_option() {
         let manager = UsbManager::builder()

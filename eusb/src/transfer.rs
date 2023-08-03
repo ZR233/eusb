@@ -107,7 +107,7 @@ impl TransferWarp for Transfer {
 
 
 impl Transfer {
-    pub fn new(
+    pub(crate) fn new(
         iso_packets: u32,
         buff_size: usize,
     )->Result<Self>{
@@ -123,7 +123,7 @@ impl Transfer {
         })
     }
 
-    pub fn control(
+    pub(crate) fn control(
         device: &Device,
         request: ControlTransferRequest,
         direction: EndpointDirection,
@@ -166,7 +166,7 @@ impl Transfer {
 
         Ok(s)
     }
-    pub fn bulk (
+    pub(crate) fn bulk (
         interface: &Interface,
         request: BulkTransferRequest,
         direction: EndpointDirection,
