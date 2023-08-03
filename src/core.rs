@@ -18,6 +18,7 @@ unsafe impl Sync for UsbManager{}
 
 struct Context(*mut libusb_context);
 unsafe impl Send for Context{}
+unsafe impl Sync for Context{}
 
 
 impl UsbManager {

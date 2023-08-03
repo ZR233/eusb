@@ -90,10 +90,10 @@ impl Interface {
         }
         let t2 = Transfer::submit_wait(transfer)?.await?;
 
-        let mut data = Vec::with_capacity(t2.actual_length());
-        for i in 0..t2.actual_length() {
-            data.push(t2.buff[i]);
-        }
+        // let data = vec![0; t2.actual_length()];
+        let mut data = vec![0; t2.actual_length()];
+        data.copy_from_slice(&t2.buff.as_slice()[0..t2.actual_length()]);
+
         Ok(data)
         // let mut buf = vec![0u8; request.package_len as _];
         // let actual_length = self.bulk_transfer(

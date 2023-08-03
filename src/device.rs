@@ -11,7 +11,7 @@ use crate::error::*;
 use crate::interface::Interface;
 use crate::transfer;
 use futures::StreamExt;
-use crate::transfer::{ResultFuture, Transfer};
+use crate::transfer::{ResultFuture, ResultIn, Transfer};
 
 pub struct Device {
     pub(crate) dev: *mut libusb_device,
@@ -30,7 +30,6 @@ pub enum UsbSpeed {
 }
 
 unsafe impl Send for Device {}
-
 unsafe impl Sync for Device {}
 
 impl Device {
@@ -179,6 +178,27 @@ impl Device {
         let dev_handle = self.get_handle()?;
         Interface::new(dev_handle, index)
     }
+    // pub fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) ->  ResultIn{
+    //
+    //
+    //     ResultIn{
+    //         future: Box::pin(async move{
+    //             let transfer = Transfer::control(
+    //                 &self,
+    //                 request,
+    //                 EndpointDirection::In,
+    //                 max_len,
+    //                 &[]
+    //             )?;
+    //             let tran_new = Transfer::submit_wait(transfer)?.await?;
+    //             let mut data = Vec::with_capacity(tran_new.actual_length());
+    //             for i in LIBUSB_CONTROL_SETUP_SIZE..LIBUSB_CONTROL_SETUP_SIZE+tran_new.actual_length() {
+    //                 data.push(tran_new.buff[i]);
+    //             }
+    //             Ok(data)
+    //         })
+    //     }
+    // }
     pub async fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) -> Result<Vec<u8>>{
         let transfer = Transfer::control(
             &self,

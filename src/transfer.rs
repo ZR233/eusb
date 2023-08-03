@@ -1,7 +1,9 @@
+use pin_project::pin_project;
 use std::future::Future;
 use std::pin::Pin;
 use std::ptr::null_mut;
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 use futures::channel::mpsc::{channel, Receiver};
 use futures::StreamExt;
 use libusb_src::*;
@@ -235,3 +237,31 @@ impl TransferIn{
         }
     }
 }
+#[pin_project]
+pub struct ResultIn {
+    #[pin]
+    pub(crate) future: ResultFuture<Result<Vec<u8>>>
+}
+
+impl Future for ResultIn {
+    type Output = Result<Vec<u8>>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+
+        match this.future.poll(cx) {
+            Poll::Ready(d) => Poll::Ready(d),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+

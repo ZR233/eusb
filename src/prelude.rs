@@ -189,6 +189,7 @@ mod test {
     #[tokio::test]
     async fn test_bulk_transfer_in() {
         init();
+        tokio::time::sleep();
         {
             let manager = UsbManager::new().unwrap();
             let device = get_hackrf(&manager).await;
