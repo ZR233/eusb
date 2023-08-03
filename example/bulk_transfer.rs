@@ -8,7 +8,7 @@ async fn main() {
     let _ = env_logger::builder().filter_level(LevelFilter::Debug).is_test(true).try_init();
     {
         let manager = UsbManager::init_default().unwrap();
-        let mut device = manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap();
+        let device = manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap();
 
         let mut request = ControlTransferRequest::default();
         request.recipient = UsbControlRecipient::Device;
@@ -36,7 +36,7 @@ async fn main() {
 
         let mut all = 0usize;
         let start = Instant::now();
-
+        info!("开始");
         let mut transfer = interface.bulk_transfer_in(BulkTransferRequest{
             endpoint: 1,
             package_len: 262144,
@@ -44,8 +44,8 @@ async fn main() {
         }).await.unwrap();
 
         for _ in 0..1000 {
-            transfer = TransferBase::submit(transfer).unwrap().await.unwrap();
-            all += transfer.actual_length();
+            transfer = transfer.submit().unwrap().await.unwrap();
+            all += transfer.data().len();
         }
         let duration = Instant::now().duration_since(start);
         let bits = (all) as f64;

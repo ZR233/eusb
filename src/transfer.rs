@@ -1,9 +1,9 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::ptr::null_mut;
+use std::ptr::{null_mut, slice_from_raw_parts};
 use std::task::{Context, Poll};
 use futures::channel::mpsc::*;
-use futures::StreamExt;
+use futures::{StreamExt};
 use libusb_src::*;
 use crate::define::{ControlTransferRequest, EndpointDirection};
 use crate::error::*;
@@ -12,29 +12,101 @@ use crate::interface::{BulkTransferRequest, Interface};
 use pin_project::pin_project;
 use crate::libusb as p;
 
-
-
-
-
-
-
-
-
-
-
-
-pub struct TransferBase {
-    pub(crate) ptr: p::Transfer,
-    pub(crate) buff: Vec<u8>,
-    complete_send: Sender<Result<TransferBase>>,
-    complete_signal: Option<Receiver<Result<TransferBase>>>
+pub(crate) trait TransferWarp{
+    fn get_base(self)->Transfer;
+    fn from_base(transfer: Transfer)->Self;
 }
 
-unsafe impl Send  for TransferBase{}
+pub struct TransferIn{
+    base:Option<Transfer>
+}
+
+impl TransferIn{
+    pub fn data(&self) ->&[u8]{
+        let b = self.base.as_ref().unwrap();
+        unsafe {
+            match (*b.ptr.0).transfer_type {
+                LIBUSB_TRANSFER_TYPE_CONTROL=>{
+                    let data_ptr = libusb_control_transfer_get_data(b.ptr.0);
+                    let s  = &*slice_from_raw_parts(data_ptr as *const u8, b.actual_length());
+                    s
+                }
+                _=> &b.buff[0..b.actual_length()]
+            }
+        }
+    }
+
+    pub fn submit(self) ->Result<SubmitHandle<TransferIn>>{
+        Transfer::submit(self)
+    }
+}
+
+pub struct TransferOut{
+    base:Option<Transfer>
+}
+impl TransferOut{
+    pub fn set_data(&mut self, src: &[u8]){
+        self.base.as_mut().unwrap().set_buff(src)
+    }
+
+    pub fn actual_length(&self)->usize{
+        self.base.as_ref().unwrap().actual_length()
+    }
+
+    pub fn submit(self) ->Result<SubmitHandle<TransferOut>>{
+        Transfer::submit(self)
+    }
+}
+
+impl TransferWarp for TransferOut {
+    fn get_base(mut self) -> Transfer {
+        self.base.take().unwrap()
+    }
+
+    fn from_base(transfer: Transfer) -> Self {
+        Self{
+            base: Some(transfer)
+        }
+    }
+}
+
+impl TransferWarp for TransferIn {
+    fn get_base(mut self) -> Transfer {
+        self.base.take().unwrap()
+    }
+
+    fn from_base(transfer: Transfer) -> Self {
+        Self{
+            base: Some(transfer)
+        }
+    }
+}
+
+
+
+pub struct Transfer {
+    pub(crate) ptr: p::Transfer,
+    pub buff: Vec<u8>,
+    complete_send: Sender<Result<Transfer>>,
+    complete_recv: Option<Receiver<Result<Transfer>>>,
+}
+
+unsafe impl Send  for Transfer {}
 
 pub type ResultFuture<T> = Pin<Box<dyn Future<Output=T> + Send>>;
 
-impl TransferBase {
+impl TransferWarp for Transfer {
+    fn get_base(self) -> Transfer {
+        self
+    }
+
+    fn from_base(transfer: Transfer) -> Self {
+        transfer
+    }
+}
+
+
+impl Transfer {
     pub fn new(
         iso_packets: u32,
         buff_size: usize,
@@ -42,12 +114,12 @@ impl TransferBase {
         let ptr = unsafe {
             p::Transfer::new(iso_packets)
         }?;
-        let (mut tx, rx) = channel::<Result<TransferBase>>(1);
+        let (tx, rx) = channel::<Result<Transfer>>(1);
         Ok(Self{
             ptr,
             buff: vec![0; buff_size],
             complete_send: tx,
-            complete_signal: Some(rx)
+            complete_recv: Some(rx),
         })
     }
 
@@ -100,12 +172,16 @@ impl TransferBase {
         direction: EndpointDirection,
         data_out: &[u8],
     )->Result<Self>{
-        let mut s = Self::new(0, request.package_len)?;
-        if direction== EndpointDirection::Out {
-            for i in 0..data_out.len(){
-                s.buff[i]= data_out[i]
-            }
-        }
+
+        let mut s= if direction== EndpointDirection::Out {
+            let mut s= Self::new(0, 0)?;
+            s.buff = Vec::from(data_out);
+            s
+        }else{
+            Self::new(0, request.package_len)?
+        };
+
+        let length = s.buff.len();
 
         unsafe {
             let buf_ptr = s.buff.as_mut_ptr();
@@ -115,13 +191,28 @@ impl TransferBase {
                 interface.dev_handle,
                 (request.endpoint as u32 | direction.to_libusb()) as u8,
                 buf_ptr,
-                request.package_len as _,
+                length as _,
                 Self::complete_cb,
                 null_mut(),
                 request.timeout.as_millis() as _,
             );
         }
         Ok(s)
+    }
+
+    fn set_buff(&mut self, src: &[u8]){
+        unsafe {
+            match (*self.ptr.0).transfer_type {
+                LIBUSB_TRANSFER_TYPE_BULK|LIBUSB_TRANSFER_TYPE_INTERRUPT=>{
+                    self.buff.copy_from_slice(src);
+                }
+                LIBUSB_TRANSFER_TYPE_CONTROL=>{
+                    let buff = &mut self.buff[LIBUSB_CONTROL_SETUP_SIZE..];
+                    buff.copy_from_slice(src);
+                }
+                _ =>{}
+            }
+        }
     }
 
     extern "system"  fn complete_cb(data: *mut libusb_transfer){
@@ -144,15 +235,14 @@ impl TransferBase {
             user_data.complete.try_send(result).unwrap();
         }
     }
-
-
-    pub fn submit(mut self) ->Result<SubmitHandle>{
-        let mut inner = self.ptr;
-        let mut rx = self.complete_signal.take().unwrap();
-        let mut tx = self.complete_send.clone();
+    fn submit<T: TransferWarp>(sw: T) ->Result<SubmitHandle<T>>{
+        let mut s = sw.get_base();
+        let mut inner = s.ptr;
+        let mut rx = s.complete_recv.take().unwrap();
+        let tx = s.complete_send.clone();
         unsafe {
             let user_data = Box::new(UserData {
-                transfer: Some(self),
+                transfer: Some(s),
                 complete: tx,
             });
             let p = Box::into_raw(user_data);
@@ -163,8 +253,8 @@ impl TransferBase {
             future: Box::pin(async move{
                 let mut r = rx.next().await.ok_or(Error::NotFound
                 )??;
-                r.complete_signal = Some(rx);
-                Ok(r)
+                r.complete_recv=Some(rx);
+                Ok(T::from_base(r))
             }),
             inner
         })
@@ -177,14 +267,18 @@ impl TransferBase {
     }
 }
 
+
+
+
+
 #[pin_project]
-pub struct SubmitHandle {
+pub struct SubmitHandle<T>  {
     #[pin]
-    future: ResultFuture<Result<TransferBase>>,
-    inner: p::Transfer
+    future: ResultFuture<Result<T>>,
+    inner: p::Transfer,
 }
 
-impl SubmitHandle {
+impl <T>SubmitHandle<T> {
     pub fn cancel(&self)->Result<()>{
         unsafe {
             self.inner.cancel()
@@ -192,8 +286,8 @@ impl SubmitHandle {
     }
 }
 
-impl Future for SubmitHandle{
-    type Output = Result<TransferBase>;
+impl <T>Future for SubmitHandle<T>{
+    type Output = Result<T>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.project();
@@ -205,14 +299,14 @@ impl Future for SubmitHandle{
 }
 
 
-struct UserData {
-    transfer: Option<TransferBase>,
-    complete: Sender<Result<TransferBase>>,
+struct UserData{
+    transfer: Option<Transfer>,
+    complete: Sender<Result<Transfer>>,
 }
 
 
 
-impl Drop for TransferBase {
+impl Drop for Transfer {
     fn drop(&mut self) {
         unsafe {
             let _ = self.ptr.cancel();

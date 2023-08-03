@@ -1,7 +1,6 @@
 use std::mem;
 use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::{Arc};
-use log::debug;
 use crate::error::*;
 use libusb_src::*;
 use crate::define::*;
@@ -102,7 +101,7 @@ impl UsbManager {
                         // debug!("wait even");
                         libusb_handle_events(con.libusb.0);
                         // debug!("even ok");
-                        ctx = { con.ctx.lock().unwrap().clone() }
+                        ctx = con.ctx.lock().unwrap().clone()
                     }else{
                         // debug!("wait cvar");
                         let mut g = con.ctx.lock().unwrap();

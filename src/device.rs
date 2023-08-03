@@ -1,18 +1,14 @@
-use std::ffi::{c_int, c_uchar};
+use std::ffi::{c_int};
 use std::fmt::{Debug, Display, Formatter};
-use std::future::Future;
-use std::pin::Pin;
 use std::ptr::{null_mut, slice_from_raw_parts};
-use std::sync::{Arc, Mutex};
+use std::sync::{Mutex};
 use log::debug;
 use libusb_src::*;
 use crate::define::*;
 use crate::error::*;
 use crate::interface::Interface;
-use crate::transfer;
-use futures::StreamExt;
-use crate::prelude::UsbManager;
-use crate::transfer::{ResultFuture, TransferBase};
+use crate::prelude::{TransferIn, UsbManager};
+use crate::transfer::{Transfer, TransferOut, TransferWarp};
 
 pub struct Device {
     pub(crate) dev: *mut libusb_device,
@@ -180,36 +176,33 @@ impl Device {
         let dev_handle = self.get_handle()?;
         Interface::new(dev_handle, index)
     }
+
+    // pub fn control_transfer(&self, request: ControlTransferRequest)->Result<Transfer>{
+    //     Transfer::control(
+    //         &self,
+    //         request,
+    //         EndpointDirection::In,
+    //         0,
+    //         &[]
+    //     )
+    // }
+
+
+
     pub async fn control_transfer_in(&self, request: ControlTransferRequest, max_len: u16) -> Result<Vec<u8>>{
-        let transfer = TransferBase::control(
+        let transfer = Transfer::control(
             &self,
             request,
             EndpointDirection::In,
             max_len,
             &[]
         )?;
-        let tran_new = transfer.submit()?.await?;
-        let mut data = Vec::with_capacity(tran_new.actual_length());
-        for i in LIBUSB_CONTROL_SETUP_SIZE..LIBUSB_CONTROL_SETUP_SIZE+tran_new.actual_length() {
-            data.push(tran_new.buff[i]);
-        }
-        Ok(data)
+        let tran_new =  TransferIn::from_base(transfer).submit()?.await?;
 
-        // let buf_len = LIBUSB_CONTROL_SETUP_SIZE + max_len as usize;
-        // let mut buf = vec![0 as c_uchar; buf_len];
-        // let actual_length = self.control_transfer(
-        //     request,
-        //     EndpointDirection::In,
-        //     buf.as_mut_slice(),
-        // ).await?;
-        // let mut data = Vec::with_capacity(actual_length);
-        // for i in LIBUSB_CONTROL_SETUP_SIZE..LIBUSB_CONTROL_SETUP_SIZE+actual_length {
-        //     data.push(buf[i] as _);
-        // }
-        // Ok(data)
+        Ok(Vec::from(tran_new.data()))
     }
     pub async fn control_transfer_out(&self, request: ControlTransferRequest, data: &[u8])-> Result<()> {
-        let transfer = TransferBase::control(
+        let transfer = Transfer::control(
             &self,
             request,
             EndpointDirection::Out,
@@ -217,77 +210,12 @@ impl Device {
             data
         )?;
 
-        let tran_new = transfer.submit()?.await?;
+        let tran_new =  TransferOut::from_base(transfer).submit() ?.await?;
         if tran_new.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), tran_new.actual_length())))
         }
         Ok(())
-
-        // let mut buf = Vec::with_capacity(LIBUSB_CONTROL_SETUP_SIZE+ data.len());
-        // for _ in 0..LIBUSB_CONTROL_SETUP_SIZE {
-        //     buf.push(0);
-        // }
-        // for i in 0..data.len(){
-        //     buf.push(data[i] as _);
-        // }
-        //
-        // let actual_length = self.control_transfer(
-        //     request,
-        //     EndpointDirection::Out,
-        //     buf.as_mut_slice(),
-        // ).await?;
-        //
-        // if actual_length != data.len() {
-        //     return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
-        // }
-        // Ok(())
     }
-    // async fn control_transfer(
-    //     &self,
-    //     request: ControlTransferRequest,
-    //     direction: EndpointDirection,
-    //     data_len: usize,
-    // ) -> Result<usize> {
-    //
-    //     let mut transfer = transfer::Transfer::control(
-    //         &self,
-    //         request,
-    //         direction,
-    //         data_len
-    //     )?;
-    //     let mut rx = transfer.set_complete_cb();
-    //
-    //     transfer::Transfer::submit(transfer)?;
-    //
-    //     let r = rx.next().await.ok_or(Error::NotFound
-    //     )??;
-    //
-    //     Ok(r.actual_length())
-    // }
-    // fn control_transfer(
-    //     &self,
-    //     request: ControlTransferRequest,
-    //     direction: EndpointDirection,
-    //     buf: &mut [u8],
-    // ) -> Pin<Box<dyn Future<Output=Result<usize>> + Send>>  {
-    //
-    //     let mut transfer = transfer::Transfer::control(
-    //         &self,
-    //         request,
-    //         direction,
-    //         buf,
-    //     )?;
-    //     let mut rx = transfer.set_complete_cb();
-    //
-    //     transfer::Transfer::submit(transfer)?;
-    //
-    //    Pin::new( Box::new(async move{
-    //         let r = rx.next().await.ok_or(Error::NotFound
-    //         )??;
-    //
-    //         Ok(r.actual_length())
-    //     }))
-    // }
 }
 
 

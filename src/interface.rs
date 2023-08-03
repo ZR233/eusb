@@ -2,13 +2,12 @@ use std::ffi::{c_int};
 use std::ptr::{slice_from_raw_parts_mut};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use futures::StreamExt;
 use log::{debug, warn};
 use libusb_src::*;
 use crate::define::EndpointDirection;
 use crate::error::*;
-use crate::transfer::TransferBase;
-
+use crate::prelude::TransferOut;
+use crate::transfer::{Transfer, TransferIn, TransferWarp};
 
 pub struct  Interface{
     number: c_int,
@@ -51,34 +50,8 @@ impl Interface {
         })
     }
 
-    // async fn bulk_transfer(
-    //     &self,
-    //     request: BulkTransferRequest,
-    //     direction: EndpointDirection,
-    //     buf: &mut [u8],
-    //     transfer_type: u8,
-    // )->Result<usize>{
-    //     let mut transfer = Transfer::bulk(
-    //         &self,
-    //         request,
-    //         direction,
-    //         buf,
-    //     )?;
-    //     unsafe {
-    //         (*transfer.ptr).transfer_type = transfer_type;
-    //     }
-    //
-    //     let mut rx = transfer.set_complete_cb();
-    //
-    //     Transfer::submit(transfer)?;
-    //
-    //     let r = rx.next().await.ok_or(Error::NotFound
-    //     )??;
-    //
-    //     Ok(r.actual_length())
-    // }
-    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) -> Result<TransferBase>{
-        let mut transfer = TransferBase::bulk(
+    pub async fn bulk_transfer_in(&self, request: BulkTransferRequest) -> Result<TransferIn>{
+        let transfer = Transfer::bulk(
             self,
                 request,
                 EndpointDirection::In,
@@ -88,12 +61,13 @@ impl Interface {
         unsafe {
             (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
-        let t2 = transfer.submit()?.await?;
+        let ti = TransferIn::from_base(transfer);
+        let t2 = ti.submit()?.await?;
 
         Ok(t2)
     }
-    pub async fn bulk_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
-        let mut transfer = TransferBase::bulk(
+    pub async fn bulk_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<TransferOut> {
+        let transfer = Transfer::bulk(
             self,
             request,
             EndpointDirection::Out,
@@ -102,24 +76,11 @@ impl Interface {
         unsafe {
             (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_BULK;
         }
-        let t2 = transfer.submit()?.await?;
+        let t2 = TransferOut::from_base(transfer).submit()?.await?;
         if t2.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
         }
-        Ok(())
-
-
-        // let actual_length = self.bulk_transfer(
-        //     request,
-        //     EndpointDirection::Out,
-        //     data,
-        //     LIBUSB_TRANSFER_TYPE_BULK
-        // ).await?;
-        //
-        // if actual_length != data.len() {
-        //     return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
-        // }
-        // Ok(())
+        Ok(t2)
     }
 
     pub fn open_bulk_in_channel(
@@ -132,7 +93,7 @@ impl Interface {
             let bulk_cancel = Arc::new(BulkInCancel::new()) ;
 
             for _ in 0..option.request_size{
-                let mut callback_data = Box::new(TransferIn::new(
+                let mut callback_data = Box::new(BulkTransferIn::new(
                     tx.clone(),
                     request.package_len,
                     &bulk_cancel,
@@ -161,7 +122,7 @@ impl Interface {
     }
 
     pub async fn interrupt_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
-        let mut transfer = TransferBase::bulk(
+        let transfer = Transfer::bulk(
             self,
             request,
             EndpointDirection::In,
@@ -171,25 +132,12 @@ impl Interface {
         unsafe {
             (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
         }
-        let t2 = transfer.submit()?.await?;
+        let t2 =  TransferIn::from_base(transfer).submit()?.await?;
 
-        let mut data = Vec::with_capacity(t2.actual_length());
-        for i in 0..t2.actual_length() {
-            data.push(t2.buff[i]);
-        }
-        Ok(data)
-        // let mut buf = vec![0u8; request.package_len as _];
-        // let actual_length = self.bulk_transfer(
-        //     request,
-        //     EndpointDirection::In,
-        //     buf.as_mut_slice(),
-        //     LIBUSB_TRANSFER_TYPE_INTERRUPT
-        // ).await?;
-        // buf.resize(actual_length, 0);
-        // Ok(buf)
+        Ok(Vec::from(t2.data()))
     }
     pub async fn interrupt_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<()> {
-        let mut transfer = TransferBase::bulk(
+        let transfer = Transfer::bulk(
             self,
             request,
             EndpointDirection::Out,
@@ -198,22 +146,12 @@ impl Interface {
         unsafe {
             (*transfer.ptr.0).transfer_type=LIBUSB_TRANSFER_TYPE_INTERRUPT;
         }
-        let t2 = transfer.submit()?.await?;
+        let t2 =  TransferOut::from_base(transfer).submit()?.await?;
         if t2.actual_length() != data.len() {
             return  Err(Error::Io(format!("send {}, actual {}", data.len(), t2.actual_length())))
         }
         Ok(())
-        // let actual_length = self.bulk_transfer(
-        //     request,
-        //     EndpointDirection::Out,
-        //     data,
-        //     LIBUSB_TRANSFER_TYPE_INTERRUPT
-        // ).await?;
-        //
-        // if actual_length != data.len() {
-        //     return  Err(Error::Io(format!("send {}, actual {}", data.len(), actual_length)))
-        // }
-        // Ok(())
+
     }
 }
 
@@ -254,14 +192,14 @@ impl BulkInCancel {
 
 
 
-struct TransferIn {
+struct BulkTransferIn {
     buff: Vec<u8>,
     tx: futures::channel::mpsc::Sender<Vec<u8>>,
     cancel: Arc<BulkInCancel>,
     ptr: *mut libusb_transfer,
 }
 
-impl TransferIn {
+impl BulkTransferIn {
     fn new(
         tx: futures::channel::mpsc::Sender<Vec<u8>>,
         package_len: usize,
@@ -283,7 +221,7 @@ impl TransferIn {
     }
 }
 
-impl Drop for TransferIn {
+impl Drop for BulkTransferIn {
     fn drop(&mut self) {
         self.tx.close_channel();
         self.cancel.cancel();
@@ -296,7 +234,7 @@ impl Drop for TransferIn {
 extern "system" fn libusb_transfer_cb_fn_channel_in(data: *mut libusb_transfer){
     unsafe {
 
-        let data_ptr = (*data).user_data as *mut TransferIn;
+        let data_ptr = (*data).user_data as *mut BulkTransferIn;
 
         if (*data).status != LIBUSB_TRANSFER_COMPLETED {
             debug!("bulk transfer stop: {}", (*data).status);
