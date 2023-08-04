@@ -279,10 +279,8 @@ pub struct SubmitHandle<T>  {
 }
 
 impl <T>SubmitHandle<T> {
-    pub fn cancel(&self)->Result<()>{
-        unsafe {
-            self.inner.cancel()
-        }
+    pub fn cancel_token(&self)->TransferCancelToken{
+        TransferCancelToken(self.inner)
     }
 }
 
@@ -314,4 +312,16 @@ impl Drop for Transfer {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct TransferCancelToken(p::Transfer);
+unsafe impl Send  for TransferCancelToken{}
+unsafe impl Sync  for TransferCancelToken{}
 
+
+impl TransferCancelToken {
+    pub fn cancel(&self) ->Result<()>{
+        unsafe{
+            self.0.cancel()
+        }
+    }
+}

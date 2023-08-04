@@ -19,9 +19,12 @@ path = "bulk_transfer.rs"
 [[bin]]
 name = "bulk_channel"
 path = "bulk_channel.rs"
+[[bin]]
+name = "cancel"
+path = "cancel.rs"
 
 [dependencies]
-eusb = {    path = "../eusb", version = "0.1.2"   }
+eusb = {    path = "../eusb", version = "0.1"   }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"

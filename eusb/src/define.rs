@@ -137,3 +137,5 @@ impl DeviceDescriptor {
     pub fn id_product(&self)-> u16{ self.data.idProduct}
     pub fn num_configurations(&self)-> u8{ self.data.bNumConfigurations}
 }
+
+

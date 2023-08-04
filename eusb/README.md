@@ -1,18 +1,14 @@
+![Build](https://github.com/ZR233/eusb/workflows/BuildUbuntu/badge.svg)
+![Build](https://github.com/ZR233/eusb/workflows/BuildWindows/badge.svg)
+![Build](https://github.com/ZR233/eusb/workflows/BuildMacos/badge.svg)
+![Build](https://github.com/ZR233/eusb/workflows/BuildAndroid/badge.svg)
+
 # EUsb
 
 The `eusb` crate provides easy way to communicate usb, with async fn.
 
-tested on ubuntu and windows
-
-# platform
-
-|                                 Ubuntu                                  |                                 Windows                                  |                                 macOS                                  |                                 android                                  |
-|:-----------------------------------------------------------------------:|:------------------------------------------------------------------------:|:----------------------------------------------------------------------:|:------------------------------------------------------------------------:|
-| ![Build](https://github.com/ZR233/eusb/workflows/BuildUbuntu/badge.svg) | ![Build](https://github.com/ZR233/eusb/workflows/BuildWindows/badge.svg) | ![Build](https://github.com/ZR233/eusb/workflows/BuildMacos/badge.svg) | ![Build](https://github.com/ZR233/eusb/workflows/BuildAndroid/badge.svg) |
-
-
 # example
-test use hackrf one.
+Test with device hackrf one.
 
 ```rust
 use rusb::prelude::*;
@@ -66,7 +62,3 @@ async fn main(){
 }
 
 ```
-
-# Cross Compile
-
-support windows linux and android, not test ios and mac.

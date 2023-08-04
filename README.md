@@ -1,8 +1,6 @@
 EUsb
 ===========
 
-![Rust](https://github.com/ZR233/eusb/workflows/Rust/badge.svg)
-
 Rust bindings for the [Libusb C-library](https://libusb.info/) for communicate with usb device.
 
 This repository includes three crates:
@@ -14,15 +12,6 @@ This repository includes three crates:
   [![docs.rs](https://docs.rs/libusb-src/badge.svg)](https://docs.rs/libusb-src)
   `libusb-src`: A crate for compiling the Libusb library.
 - `example`: example usages.
-
-
-Support platform
---------------
-
-
-| Linux | Windows | macOS | android |
-|:-----:|:-------:|:-----:|:-------:|
-|  ✔️   |   ✔️    |  ✔️   |   ✔️    |
 
 LICENSE
 --------
