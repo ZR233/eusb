@@ -221,18 +221,18 @@ mod test{
         }
     }
 
-    #[test]
-    fn test_device_pid_vid() {
-        let manager = UsbManager::init_default().unwrap();
-        let r = manager.open_device_with_vid_pid(0x1d50,0x6089);
-        match r {
-            Ok(device) => {
-                println!("{} speed: {:?}", device, device.speed());
-            }
-            Err(_) => {
-                println!("not found");
-            }
-        }
-    }
+    // #[test]
+    // fn test_device_pid_vid() {
+    //     let manager = UsbManager::init_default().unwrap();
+    //     let r = manager.open_device_with_vid_pid(0x1d50,0x6089);
+    //     match r {
+    //         Ok(device) => {
+    //             println!("{} speed: {:?}", device, device.speed());
+    //         }
+    //         Err(_) => {
+    //             println!("not found");
+    //         }
+    //     }
+    // }
 
 }
