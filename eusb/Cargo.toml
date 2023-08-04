@@ -7,7 +7,7 @@ license = "MIT"
 homepage = "https://github.com/ZR233/eusb"
 repository = "https://github.com/ZR233/eusb.git"
 readme = "README.md"
-keywords = ["usb", "libusb", "hardware"]
+keywords = ["usb", "libusb", "hardware", "async"]
 edition = "2021"
 
 
