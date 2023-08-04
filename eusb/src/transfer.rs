@@ -16,7 +16,9 @@ pub(crate) trait TransferWarp{
     fn get_base(self)->Transfer;
     fn from_base(transfer: Transfer)->Self;
 }
-
+/// The generic USB transfer.
+/// The user populates this structure and then submits it in order to request a in transfer.
+/// After the transfer has completed, the library populates the transfer with the results and passes it back to the user.
 pub struct TransferIn{
     pub(crate) base:Option<Transfer>
 }
@@ -35,12 +37,15 @@ impl TransferIn{
             }
         }
     }
-
+    /// Submit a transfer.
+    /// This function will fire off the USB transfer and then return a [SubmitHandle] immediately.
     pub fn submit(self) ->Result<SubmitHandle<TransferIn>>{
         Transfer::submit(self)
     }
 }
-
+/// The generic USB transfer.
+/// The user populates this structure and then submits it in order to request a  out transfer.
+/// After the transfer has completed, the library populates the transfer with the results and passes it back to the user.
 pub struct TransferOut{
     pub(crate) base:Option<Transfer>
 }
@@ -53,6 +58,8 @@ impl TransferOut{
         self.base.as_ref().unwrap().actual_length()
     }
 
+    /// Submit a transfer.
+    /// This function will fire off the USB transfer and then return a [SubmitHandle] immediately.
     pub fn submit(self) ->Result<SubmitHandle<TransferOut>>{
         Transfer::submit(self)
     }
@@ -319,6 +326,23 @@ unsafe impl Sync  for TransferCancelToken{}
 
 
 impl TransferCancelToken {
+    ///Asynchronously cancel a previously submitted transfer.
+    ///
+    /// This function returns immediately, but this does not indicate cancellation is complete.
+    /// Your async function will be finished at some later time with a transfer [Error] of [Error::Cancelled].
+    ///
+    /// This function behaves differently on Darwin-based systems (macOS and iOS):
+    /// - Calling this function for one transfer will cause all transfers on the same endpoint to be cancelled.
+    /// Your callback function will be invoked with a transfer [Error] of [Error::Cancelled] for each transfer that was cancelled.
+    /// - Calling this function also sends a ClearFeature(ENDPOINT_HALT) request for the transfer's endpoint.
+    /// If the device does not handle this request correctly,
+    /// the data toggle bits for the endpoint can be left out of sync between host and device,
+    /// which can have unpredictable results when the next data is sent on the endpoint,
+    /// including data being silently lost. A call to libusb_clear_halt will not resolve this situation,
+    /// since that function uses the same request.
+    /// Therefore, if your program runs on Darwin and uses a device that does not
+    /// correctly implement ClearFeature(ENDPOINT_HALT) requests, it may only be safe to cancel
+    /// transfers when followed by a device reset using libusb_reset_device.
     pub fn cancel(&self) ->Result<()>{
         unsafe{
             self.0.cancel()
