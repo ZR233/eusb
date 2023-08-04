@@ -24,7 +24,7 @@ name = "cancel"
 path = "cancel.rs"
 
 [dependencies]
-eusb = {    path = "../eusb", version = "0.1"   }
+eusb = {    path = "../eusb", version = "0"   }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"
