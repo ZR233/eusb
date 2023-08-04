@@ -9,9 +9,26 @@ use crate::error::*;
 use crate::prelude::TransferOut;
 use crate::transfer::{Transfer, TransferIn, TransferWarp};
 
+pub struct  InterfaceDescriptor{
+    pub InterfaceNumber: u8,
+    pub AlternateSetting: u8,
+    pub NumEndpoints: u8,
+    pub InterfaceClass: u8,
+    pub InterfaceSubClass: u8,
+    pub InterfaceProtocol: u8,
+}
+
+impl InterfaceDescriptor {
+    pub(crate) fn from_ptr(ptr: *mut libusb_interface_descriptor){
+
+    }
+}
+
+
 pub struct  Interface{
     number: c_int,
     pub(crate) dev_handle: *mut libusb_device_handle,
+    is_claim: bool,
 }
 
 unsafe impl Send for Interface{}
@@ -37,18 +54,26 @@ impl Default for BulkChannelOption {
 }
 
 impl Interface {
-    pub(crate) fn new(dev_handle: *mut libusb_device_handle, index: usize)->Result<Self>{
+    pub(crate) fn new_claimed(dev_handle: *mut libusb_device_handle, index: usize) ->Result<Self>{
         let number = index as c_int;
-        unsafe {
-            let r = libusb_claim_interface(dev_handle, number);
-            check_err(r)?;
-        }
-
-        Ok(Self{
+        let mut s = Self{
             number,
             dev_handle,
-        })
+            is_claim: true
+        };
+        s.claim()?;
+        Ok(s)
     }
+
+    pub fn claim(&mut self)->Result<()>{
+        unsafe {
+            let r = libusb_claim_interface(self.dev_handle, self.number);
+            check_err(r)?;
+        }
+        Ok(())
+    }
+
+
     pub fn bulk_transfer_in_request(&self, request: BulkTransferRequest)-> Result<TransferIn>{
         let transfer = Transfer::bulk(
             self,
@@ -105,6 +130,7 @@ impl Interface {
         request: BulkTransferRequest,
         option: BulkChannelOption,
     )->Result<futures::channel::mpsc::Receiver<Vec<u8>>>{
+
         let (tx, rx) = futures::channel::mpsc::channel::<Vec<u8>>(option.channel_size);
         unsafe {
             let bulk_cancel = Arc::new(BulkInCancel::new()) ;
@@ -138,12 +164,12 @@ impl Interface {
         Ok(rx)
     }
 
-    pub async fn interrupt_transfer_in(&self, request: BulkTransferRequest) -> Result<Vec<u8>>{
+    pub async fn interrupt_transfer_in(&mut self, request: BulkTransferRequest) -> Result<Vec<u8>>{
         let transfer = self.interrupt_transfer_in_request(request)?;
         let t2 = transfer.submit()?.await?;
         Ok(Vec::from(t2.data()))
     }
-    pub async fn interrupt_transfer_out(&self, request: BulkTransferRequest, data: &mut[u8])-> Result<usize> {
+    pub async fn interrupt_transfer_out(&mut self, request: BulkTransferRequest, data: &mut[u8])-> Result<usize> {
         let t1 = self.interrupt_transfer_out_request(request, data)?;
         let t2 = t1.submit()?.await?;
         Ok(t2.actual_length())
@@ -154,7 +180,10 @@ impl Drop for Interface {
     fn drop(&mut self) {
         debug!("Release interface.");
         unsafe {
-            libusb_release_interface(self.dev_handle, self.number);
+            if self.is_claim {
+                libusb_release_interface(self.dev_handle, self.number);
+            }
+
         }
     }
 }

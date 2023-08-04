@@ -16,7 +16,7 @@ async fn main(){
         request.transfer_type = UsbControlTransferType::Vendor;
         request.request = 1;
         request.value = 0;
-
+        device.set_configuration(1).unwrap();
         device.control_transfer_out(
             request,
             &[0; 0],
@@ -33,7 +33,7 @@ async fn main(){
             &[0; 0],
         ).await.unwrap();
 
-        let interface = device.get_interface(0).unwrap();
+        let mut interface = device.get_interface(0).unwrap();
         let mut option = BulkChannelOption::default();
         option.request_size=2;
 

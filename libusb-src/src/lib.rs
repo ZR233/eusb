@@ -77,11 +77,13 @@ pub struct libusb_interface_descriptor {
     pub bLength: u8,
     pub bDescriptorType: u8,
     pub bInterfaceNumber: u8,
+    /// Index of string descriptor describing this interface.
     pub bAlternateSetting: u8,
     pub bNumEndpoints: u8,
     pub bInterfaceClass: u8,
     pub bInterfaceSubClass: u8,
     pub bInterfaceProtocol: u8,
+    /// Index of string descriptor describing this interface.
     pub iInterface: u8,
     pub endpoint: *const libusb_endpoint_descriptor,
     pub extra: *const c_uchar,

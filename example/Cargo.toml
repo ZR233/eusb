@@ -22,6 +22,10 @@ path = "bulk_channel.rs"
 [[bin]]
 name = "cancel"
 path = "cancel.rs"
+[[bin]]
+name = "device"
+path = "device.rs"
+
 
 [dependencies]
 eusb = {    path = "../eusb", version = "0"   }

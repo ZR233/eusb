@@ -33,7 +33,7 @@ async fn main(){
             &[0; 0],
         ).await.unwrap();
 
-        let interface = device.get_interface(0).unwrap();
+        let mut interface = device.get_interface(0).unwrap();
 
         let mut all = 0usize;
         let start = Instant::now();

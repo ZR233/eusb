@@ -7,6 +7,7 @@ use crate::define::*;
 use crate::device::*;
 #[cfg(unix)]
 use std::os::unix::io::RawFd;
+use log::debug;
 
 #[derive(Clone)]
 pub struct UsbManager{
@@ -118,8 +119,9 @@ impl UsbManager {
                         // debug!("cvar ok");
                     }
                 }
-                libusb_exit(con.libusb.0);
                 // debug!("event_finish");
+                libusb_exit(con.libusb.0);
+                debug!("event_finish");
             }
         });
 
