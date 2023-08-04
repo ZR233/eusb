@@ -21,11 +21,7 @@ jobs:
           ndk-version: r25b
           local-cache: true
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
-          targets: aarch64-linux-android
-          components: rustfmt, clippy
+        run: rustup target add aarch64-linux-android
       - name: Setup Cargo-ndk
         run: cargo install cargo-ndk
       - name: Build

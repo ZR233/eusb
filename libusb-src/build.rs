@@ -52,7 +52,7 @@ fn main(){
         if env::var("CARGO_CFG_TARGET_OS") == Ok("macos".into()) {
             c.define("OS_DARWIN", Some("1"));
             c.define("TARGET_OS_OSX", Some("1"));
-            c.file(src_os_files.join("darwin_usb.c"));
+            c.file(libusb_src_os.join("darwin_usb.c"));
             println!("cargo:rustc-link-lib=framework=CoreFoundation");
             println!("cargo:rustc-link-lib=framework=IOKit");
             println!("cargo:rustc-link-lib=framework=Security");
