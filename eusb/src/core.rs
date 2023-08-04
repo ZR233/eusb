@@ -5,6 +5,8 @@ use crate::error::*;
 use libusb_src::*;
 use crate::define::*;
 use crate::device::*;
+#[cfg(unix)]
+use std::os::unix::io::RawFd;
 
 #[derive(Clone)]
 pub struct UsbManager{
@@ -15,6 +17,7 @@ pub(crate) struct Context{
     pub(crate) context: LibusbContext,
     pub(crate) event_controller: Arc<EventController>
 }
+
 
 pub(crate) struct LibusbContext(pub(crate) *mut libusb_context);
 unsafe impl Send for LibusbContext{}
@@ -44,7 +47,7 @@ pub struct UsbOption{
 impl UsbOption {
 
     #[cfg(windows)]
-    pub fn use_usbdk(&mut self)-> Result<&mut Self> {
+    pub fn use_usbdk(mut self)-> Result<Self> {
         unsafe {
             let r = libusb_set_option(self.ptr, LIBUSB_OPTION_USE_USBDK);
             check_err(r)?;
@@ -52,8 +55,8 @@ impl UsbOption {
         Ok(self)
     }
 
-    #[cfg(all(not(target_os = "android"), unix))]
-    pub fn no_device_discovery(&mut self)-> Result<&mut Self>{
+    #[cfg(unix)]
+    pub fn no_device_discovery(mut self)-> Result<Self>{
         unsafe {
             let r = libusb_set_option(self.ptr, LIBUSB_OPTION_NO_DEVICE_DISCOVERY);
             check_err(r)?;
@@ -61,8 +64,13 @@ impl UsbOption {
         Ok(self)
     }
 
-    pub fn init(&self)->Result<UsbManager>{
-        UsbManager::from_libusb(self.ptr)
+    pub fn init(mut self)->Result<UsbManager>{
+        let mut s = self;
+        #[cfg(target_os = "android")]
+        {
+            s =s.no_device_discovery()?;
+        }
+        UsbManager::from_libusb(s.ptr)
     }
 }
 
@@ -152,6 +160,24 @@ impl UsbManager {
         Err(Error::NotFound)
     }
 
+
+    /// Wrap a platform-specific system device handle and obtain a [Device] for the underlying device.
+    ///
+    /// The handle allows you to use perform I/O on the device in question.
+    ///
+    /// init with [UsbOption::no_device_discovery] if you want to skip enumeration of USB devices. In particular, this might be needed on Android if you don't have authority to access USB devices in general.
+    ///
+    /// On Linux, the system device handle must be a valid file descriptor opened on the device node.
+    ///
+    /// The system device handle must remain open until [Device] is dropped. The system device handle will not be closed by [Drop].
+    ///
+    /// This is a non-blocking function; no requests are sent over the bus.
+    #[cfg(unix)]
+    pub fn open_device_with_fd(&self, fd: RawFd)->Result<Arc<Device>>{
+        let device = Device::from_fd(self.ctx.context.0, fd, &self)?;
+        Ok(Arc::new(device))
+    }
+
 }
 
 impl Drop for Context {
@@ -193,46 +219,4 @@ impl Drop for DeviceList {
             libusb_free_device_list(self.ptr, 1);
         }
     }
-}
-
-
-
-#[cfg(test)]
-mod test{
-    use crate::core::UsbManager;
-    #[cfg(not(windows))]
-    #[test]
-    fn test_device_option() {
-        let manager = UsbManager::builder()
-            .no_device_discovery().unwrap().init().unwrap();
-        let list = manager.device_list().unwrap();
-        for x in list {
-            let sp = x.speed();
-            println!("{} speed: {:?}", x, sp);
-        }
-    }
-    #[test]
-    fn test_device_list() {
-        let manager = UsbManager::init_default().unwrap();
-        let list = manager.device_list().unwrap();
-        for x in list {
-            let sp = x.speed();
-            println!("{} speed: {:?}", x, sp);
-        }
-    }
-
-    // #[test]
-    // fn test_device_pid_vid() {
-    //     let manager = UsbManager::init_default().unwrap();
-    //     let r = manager.open_device_with_vid_pid(0x1d50,0x6089);
-    //     match r {
-    //         Ok(device) => {
-    //             println!("{} speed: {:?}", device, device.speed());
-    //         }
-    //         Err(_) => {
-    //             println!("not found");
-    //         }
-    //     }
-    // }
-
 }

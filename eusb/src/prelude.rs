@@ -25,9 +25,21 @@ mod test {
     #[tokio::test]
     async fn device_list(){
         let m = UsbManager::init_default().unwrap();
-        m.device_list().unwrap();
+        for one in m.device_list().unwrap(){
+            println!("{} {}", one.descriptor().id_vendor(), one.descriptor().id_product());
+        }
     }
-
+    #[cfg(not(windows))]
+    #[test]
+    fn test_device_option() {
+        let manager = UsbManager::builder()
+            .no_device_discovery().unwrap().init().unwrap();
+        let list = manager.device_list().unwrap();
+        for x in list {
+            let sp = x.speed();
+            println!("{} speed: {:?}", x, sp);
+        }
+    }
 
     // #[tokio::test]
     // async fn test_device() {

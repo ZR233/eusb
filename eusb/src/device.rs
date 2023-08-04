@@ -4,6 +4,8 @@ use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::{Mutex};
 use log::debug;
 use libusb_src::*;
+#[cfg(unix)]
+use std::os::unix::io::RawFd;
 use crate::define::*;
 use crate::error::*;
 use crate::interface::Interface;
@@ -13,7 +15,7 @@ use crate::transfer::{Transfer, TransferOut, TransferWarp};
 pub struct Device {
     pub(crate) dev: *mut libusb_device,
     pub(crate) handle: Mutex<*mut libusb_device_handle>,
-    manager: UsbManager
+    manager: UsbManager,
 }
 
 #[derive(Debug)]
@@ -27,8 +29,9 @@ pub enum UsbSpeed {
 }
 
 unsafe impl Send for Device {}
-
 unsafe impl Sync for Device {}
+
+
 
 impl Device {
     pub(crate) fn new(
@@ -42,9 +45,30 @@ impl Device {
         Self {
             dev,
             handle: Mutex::new(null_mut()),
-            manager: manager.clone()
+            manager: manager.clone(),
         }
     }
+
+    #[cfg(unix)]
+    pub(crate) fn from_fd(
+        ctx:  *mut libusb_context,
+        fd: RawFd,
+        manager: &UsbManager
+    ) -> Result<Self> {
+        unsafe {
+            let mut handle= null_mut();
+            check_err(libusb_wrap_sys_device(ctx, fd as _, &mut handle))?;
+            let dev = libusb_get_device(handle);
+
+            Ok(Self {
+                dev,
+                handle: Mutex::new(handle),
+                manager: manager.clone(),
+            })
+        }
+    }
+
+
     pub fn descriptor(&self) -> DeviceDescriptor {
         let mut desc = DeviceDescriptor::default();
         unsafe {
