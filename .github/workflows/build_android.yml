@@ -26,7 +26,5 @@ jobs:
         run: cargo install cargo-ndk
       - name: Build
         run: cargo ndk -t arm64-v8a -t arm64-v8a build -p eusb --verbose
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 #      - name: Run tests
 #        run: cargo test --verbose

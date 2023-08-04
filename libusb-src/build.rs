@@ -151,7 +151,13 @@ fn gen_config_h(params: &mut Params){
             params.config_dir.join("config.h"),
         )
             .unwrap();
-    }else if  env::var("CARGO_CFG_TARGET_FAMILY") == Ok("unix".into()) {
+    }else if env::var("CARGO_CFG_TARGET_OS") == Ok("macos".into()) {
+        fs::copy(
+            params.root.join("libusb").join("Xcode").join("config.h"),
+            params.config_dir.join("config.h"),
+        )
+            .unwrap();
+    } else if  env::var("CARGO_CFG_TARGET_FAMILY") == Ok("unix".into()) {
         let mut config_h = fs::File::create(params.config_dir.join("config.h")).unwrap();
         write!(config_h, "{}", CONFIG_H_UNIX_CONTENT).unwrap();
         let version = get_libusb_version(&params.libusb_src_dir);
