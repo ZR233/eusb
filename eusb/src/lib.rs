@@ -1,9 +1,5 @@
-mod define;
+pub(crate) mod define;
+pub(crate) mod manager;
+mod platform;
 pub mod error;
-mod libusb;
-mod transfer;
-mod interface;
 mod device;
-mod core;
-
-pub mod prelude;
