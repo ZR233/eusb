@@ -1,10 +1,10 @@
 use crate::error::*;
 use std::sync::{Arc};
-use crate::define::{CtxManager, IManager, ResultFuture};
-use crate::device::UsbDevice;
+use crate::adaptor::{CtxManager, IManager};
+use crate::device::Device;
 
 #[cfg(libusb)]
-use crate::platform::libusb::*;
+use crate::adaptor::libusb::*;
 
 #[derive(Clone)]
 pub struct UsbManager{
@@ -21,35 +21,28 @@ impl UsbManager {
         })
     }
 
-    pub fn device_list(&self)->ResultFuture<Vec<UsbDevice>>{
+    pub async fn device_list(&self)->Result<Vec<Device>>{
         let ctx = self.ctx.clone();
-        Box::pin(async move{
-            let mut l = ctx.clone().device_list().await?;
-            let mut out = vec![];
-            while let Some(one) = l.pop()  {
-                #[cfg(libusb)]
-                let dev = UsbDevice::new(one, ctx.clone());
-                out.push(dev);
+
+        let mut l = ctx.clone().device_list().await?;
+        let mut out = vec![];
+        while let Some(one) = l.pop()  {
+            #[cfg(libusb)]
+            let dev = Device::new(one, ctx.clone());
+            out.push(dev);
+        }
+        Ok(out)
+    }
+
+    pub async fn open_device_with_vid_pid(&self, vendor_id: usize, product_id: usize)->Result<Device>{
+        let list = self.device_list().await?;
+        for device in list {
+            if device.vid() == vendor_id as u16 && device.pid() == product_id as u16 {
+                return  Ok(device);
             }
-            Ok(out)
-        })
+        }
+        Err(Error::NotFound)
     }
 }
 
 
-#[cfg(test)]
-mod test{
-    use super::*;
-
-    #[tokio::test]
-    async fn it_works(){
-        let m = UsbManager::new().unwrap();
-        let dl = m.device_list().await.unwrap();
-        let d = dl[0].clone();
-        // let il = d.interface_list().await.unwrap();
-        println!("{}", dl.len());
-
-
-    }
-
-}

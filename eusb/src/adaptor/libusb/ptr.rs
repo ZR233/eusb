@@ -22,3 +22,13 @@ impl Context {
     }
 }
 
+
+
+#[derive(Copy, Clone)]
+pub(crate) struct DeviceHandle(pub(crate) *mut libusb_device_handle);
+unsafe impl Send for DeviceHandle{}
+unsafe impl Sync for DeviceHandle{}
+
+impl DeviceHandle {
+    pub(crate) fn is_null(&self)->bool{ self.0.is_null() }
+}

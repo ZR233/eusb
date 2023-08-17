@@ -1,5 +1,6 @@
 pub(crate) mod define;
 pub(crate) mod manager;
-mod platform;
+mod adaptor;
 pub mod error;
 mod device;
+pub mod prelude;
