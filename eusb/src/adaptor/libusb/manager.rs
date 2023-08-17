@@ -1,3 +1,4 @@
+use std::os::fd::RawFd;
 use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::{Arc, Condvar, Mutex};
 use log::{trace};
@@ -7,6 +8,7 @@ use super::device::CtxDeviceImpl;
 use super::interface::CtxInterfaceImpl;
 use super::ptr::Context;
 use crate::error::*;
+use crate::platform::ptr::DeviceHandle;
 use crate::platform::Request;
 
 pub(crate) struct Manager{
@@ -16,8 +18,7 @@ pub(crate) struct Manager{
 }
 
 impl Manager{
-    pub(crate) fn new()->Result<Self>{
-        let mut ctx = Context::new();
+    pub(crate) fn new(mut ctx: Context) ->Result<Self>{
         ctx.init()?;
 
         let s =
@@ -97,6 +98,21 @@ impl CtxManager<CtxInterfaceImpl, Request, CtxDeviceImpl> for Manager {
             };
             Ok(list)
         })
+    }
+
+    fn open_device_with_fd(&self, fd: RawFd) -> Result<CtxDeviceImpl> {
+        unsafe {
+            let mut handle= null_mut();
+            check_err(libusb_wrap_sys_device(self.ctx.0, fd as _, &mut handle))?;
+            let dev = libusb_get_device(handle);
+            let device = CtxDeviceImpl{
+                dev,
+                handle: Mutex::new(DeviceHandle(handle)),
+                manager: None,
+            };
+            self.open_device();
+            Ok(device)
+        }
     }
 }
 

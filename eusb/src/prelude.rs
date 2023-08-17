@@ -22,7 +22,7 @@ mod test{
         init();
 
         {
-            let m = UsbManager::new().unwrap();
+            let m = UsbManager::default().unwrap();
             let d = m.open_device_with_vid_pid(0x1d50, 0x6089).await.unwrap();
             let sn = d.serial_number().await;
             // let il = d.interface_list().await.unwrap();
@@ -38,7 +38,7 @@ mod test{
         init();
 
         {
-            let m = UsbManager::new().unwrap();
+            let m = UsbManager::default().unwrap();
             let device = get_hackrf(&m).await;
             let mut data = device.control_transfer_in(
                 UsbControlRecipient::Device,
@@ -61,7 +61,7 @@ mod test{
         init();
 
         {
-            let manager = UsbManager::new().unwrap();
+            let manager = UsbManager::default().unwrap();
             let device = get_hackrf(&manager).await;
 
             device.control_transfer_out(

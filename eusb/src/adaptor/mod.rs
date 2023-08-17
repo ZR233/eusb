@@ -1,5 +1,7 @@
 pub(crate) mod libusb;
 use std::future::Future;
+#[cfg(unix)]
+use std::os::fd::RawFd;
 use std::pin::Pin;
 use std::sync::{Arc};
 use std::time::Duration;
@@ -58,4 +60,7 @@ pub(crate) trait CtxManager<
     R: IRequest,
     D: CtxDevice<I, R>>: Send {
     fn device_list(&self)-> ResultFuture<Vec<D>>;
+
+    #[cfg(unix)]
+    fn open_device_with_fd(&self, fd: RawFd)->Result<D>;
 }
