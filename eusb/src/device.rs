@@ -59,7 +59,37 @@ impl Device{
             index,
             timeout,
         }, EndpointDirection::In { capacity})?;
-        self.ctx.control_transfer(request).await
+
+        let (mut tx,mut  rx) = self.control_channel(1);
+        tx.send(request)?;
+        rx.next().await.unwrap()
+    }
+    pub async fn control_transfer_out(
+        &self,
+        recipient: UsbControlRecipient,
+        transfer_type: UsbControlTransferType,
+        request: u8,
+        value: u16,
+        index: u16,
+        timeout: Duration,
+        src: &mut [u8],
+    ) -> Result<Request>{
+        let request = self.ctx.control_request(RequestParamControlTransfer{
+            recipient,
+            transfer_type,
+            request,
+            value,
+            index,
+            timeout,
+        }, EndpointDirection::Out { src})?;
+
+        let (mut tx,mut  rx) = self.control_channel(1);
+        tx.send(request)?;
+        rx.next().await.unwrap()
     }
 
+
+    pub fn control_channel(&self, buffer: usize)->(RequestSender, RequestReceiver){
+        self.ctx.transfer_channel(buffer)
+    }
 }

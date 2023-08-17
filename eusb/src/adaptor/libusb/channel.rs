@@ -10,8 +10,8 @@ pub struct RequestSender{
     tx: Sender<Result<Request>>
 }
 
-impl RequestSender {
-    pub(crate) fn send(&mut self, request: Request)->Result<()>{
+impl  RequestSender {
+pub  fn send(&mut self, request: Request)->Result<()>{
         let tx = self.tx.clone();
 
         unsafe {
@@ -37,7 +37,7 @@ pub struct RequestReceiver{
 }
 
 impl RequestReceiver {
-    pub(crate) async fn next(&mut self)->Option<Result<Request>>{
+    pub async fn next(&mut self)->Option<Result<Request>>{
         self.rx.next().await
     }
 }

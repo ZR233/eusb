@@ -9,8 +9,7 @@ use super::Manager;
 use super::ptr::*;
 use crate::error::*;
 use crate::platform::Request;
-use futures::channel::mpsc::*;
-use crate::adaptor::{EndpointDirection, IRequest, RequestParamControlTransfer};
+use crate::adaptor::{EndpointDirection, RequestParamControlTransfer};
 use crate::adaptor::libusb::channel::{request_channel, RequestReceiver, RequestSender};
 
 pub(crate) struct CtxDeviceImpl {
@@ -58,8 +57,7 @@ impl CtxDeviceImpl {
         Ok(g.clone())
     }
 
-
-    fn transfer_channel(self: &Arc<Self>, buffer: usize) ->(RequestSender, RequestReceiver) {
+   pub(crate)  fn transfer_channel(self: &Arc<Self>, buffer: usize) -> (RequestSender, RequestReceiver) {
         let (tx, rx) = request_channel(buffer);
         return (tx, rx)
     }
@@ -123,14 +121,12 @@ impl CtxDevice<CtxInterfaceImpl, Request> for CtxDeviceImpl {
         Ok(request)
     }
 
-    fn control_transfer(self: &Arc<Self>, request: Request) -> ResultFuture<Request> {
-        let dev = self.clone();
-        Box::pin(async move{
-            let (mut tx,mut  rx) = dev.transfer_channel(1);
-            tx.send(request)?;
-            rx.next().await.unwrap()
-        })
+
+    fn get_interface(&self, index: usize) -> Arc<CtxInterfaceImpl> {
+        todo!()
     }
+
+
 }
 
 

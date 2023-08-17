@@ -2,6 +2,7 @@ use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::{Arc, Condvar, Mutex};
 use log::{trace};
 use libusb_src::*;
+use crate::adaptor::libusb::channel::{RequestReceiver, RequestSender};
 use super::super::{CtxManager, ResultFuture};
 use super::device::CtxDeviceImpl;
 use super::interface::CtxInterfaceImpl;

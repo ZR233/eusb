@@ -30,10 +30,7 @@ pub(crate) type ResultFuture<T> = Pin<Box<dyn Future<Output=Result<T>> + Send>>;
 
 pub(crate) trait IManager{}
 
-
-pub(crate) trait CtxInterface: Send {
-}
-
+pub(crate) trait CtxInterface: Send {}
 
 pub(crate) trait CtxDevice<I: CtxInterface, R: IRequest>: Send {
     fn pid(&self)->u16;
@@ -44,9 +41,12 @@ pub(crate) trait CtxDevice<I: CtxInterface, R: IRequest>: Send {
         param:RequestParamControlTransfer,
         direction: EndpointDirection
     )-> Result<R>;
-    fn control_transfer(self: &Arc<Self>, request: R) ->ResultFuture<R>;
+    fn get_interface(&self, index: usize)->Arc<I>;
 }
 
-pub(crate) trait CtxManager<I: CtxInterface, R: IRequest,D: CtxDevice<I, R>,>: Send {
+pub(crate) trait CtxManager<
+    I: CtxInterface,
+    R: IRequest,
+    D: CtxDevice<I, R>>: Send {
     fn device_list(&self)-> ResultFuture<Vec<D>>;
 }
