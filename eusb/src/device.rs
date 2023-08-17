@@ -1,9 +1,10 @@
 use std::sync::{Arc};
-use log::{error, warn};
-
-#[cfg(libusb)]
-use crate::adaptor::libusb::*;
-use crate::adaptor::CtxDevice;
+use std::time::Duration;
+use log::{warn};
+use crate::platform::*;
+use crate::adaptor::{CtxDevice, EndpointDirection, RequestParamControlTransfer};
+use crate::define::*;
+use crate::error::*;
 
 #[derive(Clone)]
 pub struct Device{
@@ -39,4 +40,26 @@ impl Device{
             }
         }
     }
+
+    pub async fn control_transfer_in(
+      &self,
+       recipient: UsbControlRecipient,
+        transfer_type: UsbControlTransferType,
+        request: u8,
+        value: u16,
+        index: u16,
+        timeout: Duration,
+        capacity: usize,
+    ) -> Result<Request>{
+        let request = self.ctx.control_request(RequestParamControlTransfer{
+            recipient,
+            transfer_type,
+            request,
+            value,
+            index,
+            timeout,
+        }, EndpointDirection::In { capacity})?;
+        self.ctx.control_transfer(request).await
+    }
+
 }

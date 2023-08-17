@@ -7,6 +7,7 @@ use super::device::CtxDeviceImpl;
 use super::interface::CtxInterfaceImpl;
 use super::ptr::Context;
 use crate::error::*;
+use crate::platform::Request;
 
 pub(crate) struct Manager{
     ctx: Context,
@@ -85,7 +86,7 @@ impl Manager{
     }
 }
 
-impl CtxManager<CtxInterfaceImpl, CtxDeviceImpl> for Manager {
+impl CtxManager<CtxInterfaceImpl, Request, CtxDeviceImpl> for Manager {
     fn device_list(&self) -> ResultFuture<Vec<CtxDeviceImpl>>{
         let ctx = self.ctx;
         Box::pin(async move {

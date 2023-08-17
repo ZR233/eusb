@@ -1,10 +1,9 @@
 use crate::error::*;
 use std::sync::{Arc};
-use crate::adaptor::{CtxManager, IManager};
+use crate::adaptor::{CtxManager};
 use crate::device::Device;
+use crate::platform::*;
 
-#[cfg(libusb)]
-use crate::adaptor::libusb::*;
 
 #[derive(Clone)]
 pub struct UsbManager{

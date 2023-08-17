@@ -1,6 +1,6 @@
 use std::ptr::null_mut;
 use std::sync::{Arc, Mutex};
-use log::{error, trace};
+use log::{trace};
 use libusb_src::*;
 pub(crate) use super::super::ResultFuture;
 pub(crate) use super::super::CtxDevice;
@@ -8,12 +8,17 @@ use super::interface::CtxInterfaceImpl;
 use super::Manager;
 use super::ptr::*;
 use crate::error::*;
+use crate::platform::Request;
+use futures::channel::mpsc::*;
+use crate::adaptor::{EndpointDirection, IRequest, RequestParamControlTransfer};
+use crate::adaptor::libusb::channel::{request_channel, RequestReceiver, RequestSender};
 
 pub(crate) struct CtxDeviceImpl {
     ctx: Context,
     pub(crate) dev: *mut libusb_device,
     pub(crate) handle: Mutex<DeviceHandle>,
-    pub(crate) manager: Option<Arc<Manager>>
+    pub(crate) manager: Option<Arc<Manager>>,
+
 }
 
 unsafe impl Send for CtxDeviceImpl {}
@@ -37,7 +42,7 @@ impl CtxDeviceImpl {
         desc
     }
 
-    fn get_handle(&self) -> Result<DeviceHandle> {
+    pub(crate) fn get_handle(&self) -> Result<DeviceHandle> {
         let mut g = self.handle.lock().unwrap();
 
         unsafe {
@@ -52,10 +57,16 @@ impl CtxDeviceImpl {
         }
         Ok(g.clone())
     }
+
+
+    fn transfer_channel(self: &Arc<Self>, buffer: usize) ->(RequestSender, RequestReceiver) {
+        let (tx, rx) = request_channel(buffer);
+        return (tx, rx)
+    }
 }
 
 
-impl CtxDevice<CtxInterfaceImpl> for CtxDeviceImpl {
+impl CtxDevice<CtxInterfaceImpl, Request> for CtxDeviceImpl {
     fn pid(&self) -> u16 {
         let desc = self.descriptor();
         unsafe {
@@ -77,11 +88,11 @@ impl CtxDevice<CtxInterfaceImpl> for CtxDeviceImpl {
         })
     }
 
-    fn serial_number(&self) -> ResultFuture<String> {
+    fn serial_number(self: &Arc<Self>) -> ResultFuture<String> {
         let desc = self.descriptor();
-        let handle = self.get_handle();
+        let s = self.clone();
         Box::pin(async move{
-            let dev = handle?;
+            let dev = s.get_handle()?;
             let index = desc.iSerialNumber;
             let mut buff = vec![0u8; 256];
             let buff_len = buff.len();
@@ -104,6 +115,20 @@ impl CtxDevice<CtxInterfaceImpl> for CtxDeviceImpl {
                 }
             }
             Ok(String::new())
+        })
+    }
+
+    fn control_request(self: &Arc<Self>, param: RequestParamControlTransfer, direction: EndpointDirection) -> Result<Request> {
+        let request = Request::control(self, param, direction)?;
+        Ok(request)
+    }
+
+    fn control_transfer(self: &Arc<Self>, request: Request) -> ResultFuture<Request> {
+        let dev = self.clone();
+        Box::pin(async move{
+            let (mut tx,mut  rx) = dev.transfer_channel(1);
+            tx.send(request)?;
+            rx.next().await.unwrap()
         })
     }
 }
