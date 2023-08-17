@@ -79,7 +79,11 @@ extern "system"  fn complete_cb(data: *mut libusb_transfer){
         match user_data.tx.try_send(result){
             Ok(_) => {}
             Err(e) => {
-                warn!("Data rcv too slow!");
+                match e { TrySendError { .. } => {
+                    if e.is_full() {
+                        warn!("Data rcv too slow!");
+                    }
+                } }
             }
         };
     }

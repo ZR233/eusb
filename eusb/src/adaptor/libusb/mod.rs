@@ -7,6 +7,9 @@ mod transfer;
 pub use transfer::Request;
 pub(crate) use manager::Manager;
 pub(crate) use device::CtxDeviceImpl;
-pub(crate) use interface::CtxInterfaceImpl;
+use interface::CtxInterfaceImpl;
 pub use channel::RequestReceiver;
 pub use channel::RequestSender;
+
+
+pub type Interface = CtxInterfaceImpl;

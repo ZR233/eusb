@@ -1,5 +1,6 @@
 use std::ptr::null_mut;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use log::{trace};
 use libusb_src::*;
 pub(crate) use super::super::ResultFuture;
@@ -11,6 +12,8 @@ use crate::error::*;
 use crate::platform::Request;
 use crate::adaptor::{EndpointDirection, RequestParamControlTransfer};
 use crate::adaptor::libusb::channel::{request_channel, RequestReceiver, RequestSender};
+use crate::adaptor::libusb::transfer::Transfer;
+use crate::define::Endpoint;
 
 pub(crate) struct CtxDeviceImpl {
     ctx: Context,
@@ -79,13 +82,6 @@ impl CtxDevice<CtxInterfaceImpl, Request> for CtxDeviceImpl {
         }
     }
 
-    fn interface_list(&self) -> ResultFuture<Vec<Arc<CtxInterfaceImpl>>> {
-        Box::pin(async{
-            let o = vec![];
-            Ok(o)
-        })
-    }
-
     fn serial_number(self: &Arc<Self>) -> ResultFuture<String> {
         let desc = self.descriptor();
         let s = self.clone();
@@ -121,9 +117,18 @@ impl CtxDevice<CtxInterfaceImpl, Request> for CtxDeviceImpl {
         Ok(request)
     }
 
+    fn bulk_request(
+        self: &Arc<Self>,
+        endpoint: Endpoint,
+        package_len: usize,
+        timeout: Duration)-> Result<Request>{
 
-    fn get_interface(&self, index: usize) -> Arc<CtxInterfaceImpl> {
-        todo!()
+        Request::bulk(self, endpoint, package_len, timeout)
+    }
+
+
+    fn get_interface(self: &Arc<Self>, num: usize) -> Result<CtxInterfaceImpl> {
+        CtxInterfaceImpl::new(self, num)
     }
 
 

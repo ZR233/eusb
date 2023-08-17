@@ -16,6 +16,8 @@ pub(crate) struct  RequestParamControlTransfer{
     pub(crate) timeout: Duration,
 }
 
+
+
 #[derive(Copy, Clone)]
 pub enum EndpointDirection<'a>{
     In{capacity: usize},
@@ -29,19 +31,26 @@ pub trait IRequest {
 pub(crate) type ResultFuture<T> = Pin<Box<dyn Future<Output=Result<T>> + Send>>;
 
 pub(crate) trait IManager{}
-
-pub(crate) trait CtxInterface: Send {}
+pub(crate) trait CtxInterface: Send {
+    fn claim(&self)->Result<()>;
+}
 
 pub(crate) trait CtxDevice<I: CtxInterface, R: IRequest>: Send {
     fn pid(&self)->u16;
     fn vid(&self)->u16;
-    fn interface_list(&self)-> ResultFuture<Vec<Arc<I>>>;
     fn serial_number(self: &Arc<Self>)-> ResultFuture<String>;
     fn control_request(self: &Arc<Self>,
         param:RequestParamControlTransfer,
         direction: EndpointDirection
     )-> Result<R>;
-    fn get_interface(&self, index: usize)->Arc<I>;
+
+    fn bulk_request(
+        self: &Arc<Self>,
+        endpoint: Endpoint,
+        package_len: usize,
+        timeout: Duration)-> Result<R>;
+
+    fn get_interface(self: &Arc<Self>, index: usize)->Result<I>;
 }
 
 pub(crate) trait CtxManager<

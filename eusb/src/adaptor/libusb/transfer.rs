@@ -1,5 +1,7 @@
 use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::Arc;
+use std::time::Duration;
+use log::trace;
 use libusb_src::*;
 use crate::adaptor::{EndpointDirection, IRequest, RequestParamControlTransfer};
 use crate::define::*;
@@ -57,7 +59,14 @@ impl ToLib for UsbControlRecipient {
         t as _
     }
 }
-
+impl ToLib for Endpoint {
+    fn to_lib(self) -> u32 {
+        match self {
+            Endpoint::In {num} => (LIBUSB_ENDPOINT_IN as u32 ) | (num as u32),
+            Endpoint::Out {num} => (LIBUSB_ENDPOINT_OUT as u32) | (num as u32),
+        }
+    }
+}
 
 impl Request {
     pub(crate) fn new(
@@ -123,6 +132,34 @@ impl Request {
         Ok(s)
     }
 
+
+    pub(crate) fn bulk(
+        device: &Arc<CtxDeviceImpl>,
+        endpoint: Endpoint,
+        package_len: usize,
+        timeout: Duration
+    ) -> Result<Self> {
+
+        let mut s = Self::new(0, package_len)?;
+        let handle = device.get_handle()?.0;
+        unsafe {
+            let buf_ptr = s.buff.as_mut_ptr();
+
+            libusb_fill_bulk_transfer(
+                s.ptr.0,
+                handle,
+                endpoint.to_lib() as _,
+                buf_ptr,
+                package_len as _,
+                Self::empty_cb,
+                null_mut(),
+                timeout.as_millis() as _,
+            );
+        }
+        Ok(s)
+    }
+
+
     extern "system" fn empty_cb(_: *mut libusb_transfer) {}
 }
 
@@ -137,6 +174,15 @@ impl IRequest for Request {
             }
 
             return &mut self.buff.as_mut_slice()[0..len];
+        }
+    }
+}
+
+impl Drop for Request {
+    fn drop(&mut self) {
+        unsafe {
+            libusb_free_transfer(self.ptr.0);
+            trace!("Transfer release");
         }
     }
 }

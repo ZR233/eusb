@@ -17,4 +17,10 @@ pub enum UsbControlTransferType {
     Reserved
 }
 
+pub enum Endpoint{
+    In{num: u8},
+    Out{num: u8},
+}
+
+
 
