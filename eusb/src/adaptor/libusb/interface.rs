@@ -3,7 +3,6 @@ use std::sync::Arc;
 use log::trace;
 use libusb_src::*;
 use super::device::CtxDeviceImpl;
-pub(crate) use super::super::CtxDevice;
 use super::super::CtxInterface;
 use crate::error::*;
 use crate::platform::ptr::DeviceHandle;

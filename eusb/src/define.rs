@@ -1,7 +1,3 @@
-use std::time::Duration;
-
-
-
 pub enum UsbControlRecipient {
     Device,
     SpecifiedInterface,

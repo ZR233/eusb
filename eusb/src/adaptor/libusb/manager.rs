@@ -2,7 +2,6 @@ use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::{Arc, Condvar, Mutex};
 use log::{trace};
 use libusb_src::*;
-use crate::adaptor::libusb::channel::{RequestReceiver, RequestSender};
 use super::super::{CtxManager, ResultFuture};
 use super::device::CtxDeviceImpl;
 use super::interface::CtxInterfaceImpl;
@@ -48,18 +47,13 @@ impl Manager{
 
             unsafe {
                 while !ctx.is_exit{
-                    // debug!("ctx: {:?}", ctx);
                     if ctx.device_count > 0 {
-                        // debug!("wait even");
                         libusb_handle_events(p.0);
-                        // debug!("even ok");
                         ctx = event.lock().unwrap().clone()
                     }else{
-                        // debug!("wait cvar");
                         let mut g = event.lock().unwrap();
                         g = cond.wait(g).unwrap();
                         ctx = g.clone();
-                        // debug!("cvar ok");
                     }
                 }
                 libusb_exit(p.0);
@@ -91,6 +85,7 @@ impl CtxManager<CtxInterfaceImpl, Request, CtxDeviceImpl> for Manager {
     fn device_list(&self) -> ResultFuture<Vec<CtxDeviceImpl>>{
         let ctx = self.ctx;
         Box::pin(async move {
+            let ctx = ctx;
             let list = unsafe {
                 let mut devs_raw: *const *mut libusb_device = null_mut();
                 let cnt = libusb_get_device_list(ctx.0, &mut devs_raw);
@@ -98,7 +93,7 @@ impl CtxManager<CtxInterfaceImpl, Request, CtxDeviceImpl> for Manager {
 
                 let list = &*slice_from_raw_parts(devs_raw, cnt as _);
 
-                list.into_iter().map(|one|{CtxDeviceImpl::new(ctx, *one)}).collect()
+                list.into_iter().map(|one|{CtxDeviceImpl::new(*one)}).collect()
             };
             Ok(list)
         })

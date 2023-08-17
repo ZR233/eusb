@@ -12,11 +12,9 @@ use crate::error::*;
 use crate::platform::Request;
 use crate::adaptor::{EndpointDirection, RequestParamControlTransfer};
 use crate::adaptor::libusb::channel::{request_channel, RequestReceiver, RequestSender};
-use crate::adaptor::libusb::transfer::Transfer;
 use crate::define::Endpoint;
 
 pub(crate) struct CtxDeviceImpl {
-    ctx: Context,
     pub(crate) dev: *mut libusb_device,
     pub(crate) handle: Mutex<DeviceHandle>,
     pub(crate) manager: Option<Arc<Manager>>,
@@ -27,9 +25,8 @@ unsafe impl Send for CtxDeviceImpl {}
 unsafe impl Sync for CtxDeviceImpl {}
 
 impl CtxDeviceImpl {
-    pub(crate) fn new(ctx: Context, dev: *mut libusb_device)->Self{
+    pub(crate) fn new(dev: *mut libusb_device)->Self{
         return Self{
-            ctx,
             dev,
             handle: Mutex::new(DeviceHandle(null_mut())),
             manager: None,
@@ -70,16 +67,12 @@ impl CtxDeviceImpl {
 impl CtxDevice<CtxInterfaceImpl, Request> for CtxDeviceImpl {
     fn pid(&self) -> u16 {
         let desc = self.descriptor();
-        unsafe {
-            desc.idProduct
-        }
+        desc.idProduct
     }
 
     fn vid(&self) -> u16 {
         let desc = self.descriptor();
-        unsafe {
-            desc.idVendor
-        }
+        desc.idVendor
     }
 
     fn serial_number(self: &Arc<Self>) -> ResultFuture<String> {

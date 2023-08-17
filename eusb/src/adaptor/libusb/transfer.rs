@@ -1,4 +1,4 @@
-use std::ptr::{null_mut, slice_from_raw_parts};
+use std::ptr::{null_mut};
 use std::sync::Arc;
 use std::time::Duration;
 use log::trace;
