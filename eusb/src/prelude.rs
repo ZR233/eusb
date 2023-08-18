@@ -24,14 +24,44 @@ mod test{
             let m = UsbManager::init_default().unwrap();
             let list = m.device_list().await.unwrap();
             for d in list {
-                let sn = d.serial_number().await;
+                let sn = match d.serial_number().await{
+                    Ok(sn) => {sn}
+                    Err(e) => {
+                        debug!("{}-{}: {}", d.pid(), d.vid(), e);
+                        continue;
+                    }
+                };
+
                 debug!("sn: {}, {}-{} ----------------", sn, d.pid(), d.vid());
-                let configs = d.configs();
+                let configs = d.config_list().unwrap();
                 for cfg in &configs{
                     debug!("extra: {:?}", cfg.extra());
-                    debug!("configuration: {}", cfg.configuration())
+                    debug!("configuration: {}", cfg.configuration().unwrap())
                 }
+
+                let cfg = d.get_config().unwrap();
+
+                debug!("default configuration: {}", cfg.configuration().unwrap())
             }
+        }
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        debug!("finish");
+    }
+    #[tokio::test]
+    async fn config(){
+        init();
+        {
+            let m = UsbManager::init_default().unwrap();
+            let device = get_hackrf(&m).await;
+            let cfg = device.get_config().unwrap();
+
+            let old = cfg.configuration_value();
+            debug!("config: {}", old);
+            // device.set_config(Config::with_value(-1)).unwrap();
+            device.set_config(Config::with_value(1)).unwrap();
+
         }
 
         tokio::time::sleep(Duration::from_secs(1)).await;

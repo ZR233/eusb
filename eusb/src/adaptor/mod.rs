@@ -1,5 +1,4 @@
 pub(crate) mod libusb;
-
 use std::fmt::Display;
 use std::future::Future;
 #[cfg(unix)]
@@ -8,7 +7,7 @@ use std::pin::Pin;
 use std::sync::{Arc};
 use std::time::Duration;
 use crate::define::*;
-use crate::error::*;
+pub(crate) use crate::error::*;
 
 
 pub(crate) struct  RequestParamControlTransfer{
@@ -40,15 +39,15 @@ pub trait IInterface: Send {
 }
 
 pub trait IConfig<I: IInterface>{
-    fn with_value(value: usize)->Self;
+    fn with_value(value: i32)->Self;
     /// Identifier value for this configuration.
-    fn configuration_value(&self)->u8;
+    fn configuration_value(&self)->i32;
     /// Extra descriptors.
     fn extra(&self)-> Vec<u8>;
     /// Maximum power consumption of the USB device from this bus in this configuration when the device is fully operation.
     /// Expressed in units of 2 mA when the device is operating in high-speed mode and in units of 8 mA when the device is operating in super-speed mode.
     fn max_power(&self)-> u8;
-    fn configuration(&self)->String;
+    fn configuration(&self)->Result<String>;
     fn interfaces(&self)->Vec<I>;
 }
 
@@ -68,9 +67,10 @@ pub(crate) trait CtxDevice<I: IInterface, R: IRequest, C: IConfig<I>>: Send {
         package_len: usize,
         timeout: Duration)-> Result<R>;
 
-    fn get_interface(self: &Arc<Self>, index: usize)->Result<I>;
-
-    fn configs(self: &Arc<Self>)->Vec<C>;
+    fn get_interface(self: &Arc<Self>, num: usize)->Result<I>;
+    fn get_config_with_device(self: &Arc<Self>) ->Result<C>;
+    fn set_config(self: &Arc<Self>, config: C)->Result<()>;
+    fn config_list(self: &Arc<Self>) ->Result<Vec<C>>;
 }
 
 pub(crate) trait CtxManager<

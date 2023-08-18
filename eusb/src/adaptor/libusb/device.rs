@@ -1,5 +1,6 @@
-use std::ptr::null_mut;
-use std::sync::{Arc, Mutex};
+use std::ffi::c_int;
+use std::ptr::{null, null_mut};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use log::{trace, warn};
 use libusb_src::*;
@@ -10,9 +11,9 @@ use super::Manager;
 use super::ptr::*;
 use crate::error::*;
 use crate::platform::Request;
-use crate::adaptor::{EndpointDirection, RequestParamControlTransfer};
 use crate::adaptor::libusb::channel::{request_channel, RequestReceiver, RequestSender};
-use crate::adaptor::libusb::config::Config;
+use crate::adaptor::*;
+use super::config::Config;
 use crate::define::Endpoint;
 
 pub(crate) struct CtxDeviceImpl {
@@ -42,9 +43,8 @@ impl CtxDeviceImpl {
         desc
     }
 
-    pub(crate) fn get_handle(&self) -> Result<DeviceHandle> {
+    pub(crate) fn get_handle_with_guard(&self) -> Result<MutexGuard<DeviceHandle>> {
         let mut g = self.handle.lock().unwrap();
-
         unsafe {
             if g.is_null() {
                 let r = libusb_open(self.dev, &mut g.0);
@@ -55,12 +55,52 @@ impl CtxDeviceImpl {
                 libusb_set_auto_detach_kernel_driver(g.0, 1);
             }
         }
+        Ok(g)
+    }
+
+    pub(crate) fn get_handle(&self) -> Result<DeviceHandle> {
+        let mut g = self.get_handle_with_guard()?;
         Ok(g.clone())
     }
 
-   pub(crate)  fn transfer_channel(self: &Arc<Self>, buffer: usize) -> (RequestSender, RequestReceiver) {
+    pub(crate)  fn transfer_channel(self: &Arc<Self>, buffer: usize) -> (RequestSender, RequestReceiver) {
         let (tx, rx) = request_channel(buffer);
         return (tx, rx)
+    }
+
+    fn get_config_by_index(self: &Arc<Self>, index: u8)->Result<Config>{
+        unsafe {
+            let mut config_ptr: *const libusb_config_descriptor = null_mut();
+            let r = libusb_get_config_descriptor(self.dev, index, &mut config_ptr);
+            check_err(r)?;
+            let mut cfg = Config::from(config_ptr);
+            cfg.device = Some(self.clone());
+            Ok(cfg)
+        }
+    }
+
+    fn get_active_config(self: &Arc<Self>) ->Result<Config>{
+        unsafe {
+            let mut ptr : *const libusb_config_descriptor = null();
+            check_err(libusb_get_active_config_descriptor(
+                self.dev,
+                &mut ptr,
+            ))?;
+            let cfg = Config::from(ptr);
+            Ok(cfg)
+        }
+    }
+}
+
+struct AutoDetachKernelDriverGuard{
+    dev: *mut libusb_device_handle
+}
+
+impl Drop for AutoDetachKernelDriverGuard {
+    fn drop(&mut self) {
+        unsafe {
+            libusb_set_auto_detach_kernel_driver(self.dev, 1);
+        }
     }
 }
 
@@ -80,7 +120,7 @@ impl CtxDevice<Interface, Request, Config> for CtxDeviceImpl {
         let desc = self.descriptor();
         let s = self.clone();
         Box::pin(async move{
-            let dev = s.get_handle()?;
+            let dev = s.get_handle_with_guard()?;
             let index = desc.iSerialNumber;
             let mut buff = vec![0u8; 256];
             let buff_len = buff.len();
@@ -125,24 +165,70 @@ impl CtxDevice<Interface, Request, Config> for CtxDeviceImpl {
         Interface::new(self, num)
     }
 
-    fn configs(self: &Arc<Self>) -> Vec<Config> {
+
+    fn get_config_with_device(self: &Arc<Self>) -> Result<Config> {
+        unsafe {
+            let mut cfg = self.get_active_config()?;
+            cfg.device = Some(self.clone());
+            Ok(cfg)
+        }
+    }
+
+    fn set_config(self: &Arc<Self>, config: Config)->Result<()> {
+        let config = config.configuration_value();
+        let guard = self.get_handle_with_guard()?;
+        let dev = guard.0;
+        unsafe {
+            let mut need_set = true;
+            let mut num_interfaces = 0;
+            match self.get_active_config(){
+                Ok(old_cfg) => {
+                    num_interfaces = (*old_cfg.ptr).bNumInterfaces;
+                    need_set = old_cfg.configuration_value() != config;
+                }
+                Err(_) => {}
+            };
+            let mut r=0;
+            // {
+            if need_set {
+                libusb_set_auto_detach_kernel_driver(dev, 0);
+                let auto_detach = AutoDetachKernelDriverGuard{dev};
+
+                for i in 0..num_interfaces{
+                    r  = libusb_kernel_driver_active(dev, i as _);
+                    if r  < 0 {
+                        if r  == LIBUSB_ERROR_NOT_SUPPORTED {
+                            break;
+                        }
+                        check_err(r)?;
+                    } else if r == 1 {
+                        r = libusb_detach_kernel_driver(dev, i as _);
+                        check_err(r)?;
+                    }
+                    libusb_release_interface(dev, i as _);
+                }
+
+                let config: c_int = config as _;
+                r = libusb_set_configuration(dev, config);
+                check_err(r)?;
+                drop(auto_detach);
+            }
+        }
+        Ok(())
+
+
+    }
+
+    fn config_list(self: &Arc<Self>) -> Result<Vec<Config>> {
         let desc = self.descriptor();
         let mut configs = Vec::with_capacity(desc.bNumConfigurations as _);
-        let dev = self.dev;
-
         unsafe {
             for i in 0..desc.bNumConfigurations{
-               let mut config_ptr: *const libusb_config_descriptor = null_mut();
-               let r = libusb_get_config_descriptor(dev, i, &mut config_ptr);
-               if r < 0 {
-                   warn!("libusb_get_config_descriptor fail");
-               }
-                let mut cfg = Config::from(config_ptr);
-                cfg.device = Some(self.clone());
+               let cfg = self.get_config_by_index(i)?;
                 configs.push(cfg);
             }
         }
-        configs
+        Ok(configs)
     }
 }
 

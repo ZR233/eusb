@@ -30,19 +30,16 @@ impl Device {
         self.ctx.vid()
     }
 
-    pub async fn serial_number(&self) -> String {
-        match self.ctx.serial_number().await {
-            Ok(s) => { s }
-            Err(e) => {
-                warn!("{}",e);
-                String::new()
-            }
-        }
+    pub async fn serial_number(&self) -> Result<String> {
+        self.ctx.serial_number().await
     }
 
-    pub fn configs(&self)->Vec<Config>{
-        self.ctx.configs()
+    pub fn config_list(&self) ->Result<Vec<Config>>{
+        self.ctx.config_list()
     }
+
+    pub fn get_config(&self)->Result<Config>{ self.ctx.get_config_with_device() }
+    pub fn set_config(&self, config: Config)->Result<()>{ self.ctx.set_config(config)}
 
     pub fn get_interface(&self, num: usize)->  Result<Interface>{
         self.ctx.get_interface(num)
