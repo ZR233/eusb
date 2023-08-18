@@ -1,2 +1,2 @@
 #[cfg(libusb)]
-pub(crate) use crate::adaptor::libusb::*;
+pub use crate::adaptor::libusb::*;

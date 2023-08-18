@@ -3,9 +3,10 @@ use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::{Arc, Condvar, Mutex};
 use log::{trace};
 use libusb_src::*;
+use crate::adaptor::libusb::config::Config;
 use super::super::{CtxManager, ResultFuture};
 use super::device::CtxDeviceImpl;
-use super::interface::CtxInterfaceImpl;
+use super::interface::Interface;
 use super::ptr::Context;
 use crate::error::*;
 use crate::platform::ptr::DeviceHandle;
@@ -82,7 +83,7 @@ impl Manager{
     }
 }
 
-impl CtxManager<CtxInterfaceImpl, Request, CtxDeviceImpl> for Manager {
+impl CtxManager<Interface, Request, Config, CtxDeviceImpl> for Manager {
     fn device_list(&self) -> ResultFuture<Vec<CtxDeviceImpl>>{
         let ctx = self.ctx;
         Box::pin(async move {

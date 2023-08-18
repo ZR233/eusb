@@ -1,17 +1,18 @@
 use std::ptr::null_mut;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use log::{trace};
+use log::{trace, warn};
 use libusb_src::*;
 pub(crate) use super::super::ResultFuture;
 pub(crate) use super::super::CtxDevice;
-use super::interface::CtxInterfaceImpl;
+use super::interface::Interface;
 use super::Manager;
 use super::ptr::*;
 use crate::error::*;
 use crate::platform::Request;
 use crate::adaptor::{EndpointDirection, RequestParamControlTransfer};
 use crate::adaptor::libusb::channel::{request_channel, RequestReceiver, RequestSender};
+use crate::adaptor::libusb::config::Config;
 use crate::define::Endpoint;
 
 pub(crate) struct CtxDeviceImpl {
@@ -64,7 +65,7 @@ impl CtxDeviceImpl {
 }
 
 
-impl CtxDevice<CtxInterfaceImpl, Request> for CtxDeviceImpl {
+impl CtxDevice<Interface, Request, Config> for CtxDeviceImpl {
     fn pid(&self) -> u16 {
         let desc = self.descriptor();
         desc.idProduct
@@ -120,11 +121,29 @@ impl CtxDevice<CtxInterfaceImpl, Request> for CtxDeviceImpl {
     }
 
 
-    fn get_interface(self: &Arc<Self>, num: usize) -> Result<CtxInterfaceImpl> {
-        CtxInterfaceImpl::new(self, num)
+    fn get_interface(self: &Arc<Self>, num: usize) -> Result<Interface> {
+        Interface::new(self, num)
     }
 
+    fn configs(self: &Arc<Self>) -> Vec<Config> {
+        let desc = self.descriptor();
+        let mut configs = Vec::with_capacity(desc.bNumConfigurations as _);
+        let dev = self.dev;
 
+        unsafe {
+            for i in 0..desc.bNumConfigurations{
+               let mut config_ptr: *const libusb_config_descriptor = null_mut();
+               let r = libusb_get_config_descriptor(dev, i, &mut config_ptr);
+               if r < 0 {
+                   warn!("libusb_get_config_descriptor fail");
+               }
+                let mut cfg = Config::from(config_ptr);
+                cfg.device = Some(self.clone());
+                configs.push(cfg);
+            }
+        }
+        configs
+    }
 }
 
 

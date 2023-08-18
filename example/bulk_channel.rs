@@ -10,7 +10,10 @@ async fn main(){
     let _ = env_logger::builder().filter_level(LevelFilter::Debug).is_test(true).try_init();
     {
         let manager = UsbManager::init_default().unwrap();
-        let device = manager.open_device_with_vid_pid(0x1d50, 0x6089).unwrap();
+        let device = manager.open_device_with_vid_pid(0x1d50, 0x6089).await.unwrap();
+        let cfg = Config::with_value(0);
+        cfg.interfaces();
+
         let mut request = ControlTransferRequest::default();
         request.recipient = UsbControlRecipient::Device;
         request.transfer_type = UsbControlTransferType::Vendor;

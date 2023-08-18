@@ -3,20 +3,20 @@ use std::sync::Arc;
 use log::trace;
 use libusb_src::*;
 use super::device::CtxDeviceImpl;
-use super::super::CtxInterface;
+use super::super::IInterface;
 use crate::error::*;
 use crate::platform::ptr::DeviceHandle;
 
-pub struct CtxInterfaceImpl{
+pub struct Interface {
     num: usize,
     device: Arc<CtxDeviceImpl>,
     handle: DeviceHandle,
 }
 
-unsafe impl Send for CtxInterfaceImpl{}
-unsafe impl Sync for CtxInterfaceImpl{}
+unsafe impl Send for Interface {}
+unsafe impl Sync for Interface {}
 
-impl CtxInterfaceImpl{
+impl Interface {
     pub(crate) fn new(device: &Arc<CtxDeviceImpl>, num: usize)->Result<Self>{
         let device = device.clone();
         let handle = device.get_handle()?;
@@ -35,7 +35,7 @@ impl CtxInterfaceImpl{
 }
 
 
-impl CtxInterface for CtxInterfaceImpl{
+impl IInterface for Interface {
     fn claim(&self) -> Result<()> {
         unsafe {
             let handle = self.device.get_handle()?;
@@ -49,7 +49,7 @@ impl CtxInterface for CtxInterfaceImpl{
     }
 }
 
-impl Drop for CtxInterfaceImpl {
+impl Drop for Interface {
     fn drop(&mut self) {
         unsafe {
             libusb_release_interface(self.handle.0, self.num as _);

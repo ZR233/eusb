@@ -40,6 +40,10 @@ impl Device {
         }
     }
 
+    pub fn configs(&self)->Vec<Config>{
+        self.ctx.configs()
+    }
+
     pub fn get_interface(&self, num: usize)->  Result<Interface>{
         self.ctx.get_interface(num)
     }
@@ -101,6 +105,4 @@ impl Device {
                         timeout: Duration)->Result<Request>{
         self.ctx.bulk_request(endpoint, package_len, timeout)
     }
-
-
 }

@@ -63,7 +63,7 @@ impl UsbManager {
     pub fn builder()->UsbManagerBuilder{
         UsbManagerBuilder::default()
     }
-    pub fn default()->Result<Self>{
+    pub fn init_default() ->Result<Self>{
         Self::builder().build()
     }
 

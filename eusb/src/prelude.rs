@@ -1,14 +1,14 @@
 pub use crate::manager::*;
 pub use crate::define::*;
 pub use crate::device::*;
-
+pub use crate::platform::*;
 
 #[cfg(test)]
 mod test{
     use std::time::{Duration, Instant};
     use log::{debug, info, LevelFilter};
     use tokio::select;
-    use crate::adaptor::{CtxInterface, IRequest};
+    use crate::adaptor::{IConfig, IInterface, IRequest};
     use super::*;
     fn init() {
         let _ = env_logger::builder().filter_level(LevelFilter::Trace).is_test(true).try_init();
@@ -22,11 +22,19 @@ mod test{
         init();
 
         {
-            let m = UsbManager::default().unwrap();
+            let m = UsbManager::init_default().unwrap();
             let d = m.open_device_with_vid_pid(0x1d50, 0x6089).await.unwrap();
             let sn = d.serial_number().await;
             // let il = d.interface_list().await.unwrap();
             debug!("sn: {}, {}-{}", sn, d.pid(), d.vid());
+
+            let configs = d.configs();
+            for cfg in &configs{
+                debug!("extra: {:?}", cfg.extra());
+            }
+
+            debug!("configs: {}", configs.len());
+
         }
 
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -38,7 +46,7 @@ mod test{
         init();
 
         {
-            let m = UsbManager::default().unwrap();
+            let m = UsbManager::init_default().unwrap();
             let device = get_hackrf(&m).await;
             let mut data = device.control_transfer_in(
                 UsbControlRecipient::Device,
@@ -61,7 +69,7 @@ mod test{
         init();
 
         {
-            let manager = UsbManager::default().unwrap();
+            let manager = UsbManager::init_default().unwrap();
             let device = get_hackrf(&manager).await;
 
             device.control_transfer_out(
