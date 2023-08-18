@@ -1,4 +1,6 @@
 pub(crate) mod libusb;
+
+use std::fmt::Display;
 use std::future::Future;
 #[cfg(unix)]
 use std::os::fd::RawFd;
@@ -46,8 +48,10 @@ pub trait IConfig<I: IInterface>{
     /// Maximum power consumption of the USB device from this bus in this configuration when the device is fully operation.
     /// Expressed in units of 2 mA when the device is operating in high-speed mode and in units of 8 mA when the device is operating in super-speed mode.
     fn max_power(&self)-> u8;
+    fn configuration(&self)->String;
     fn interfaces(&self)->Vec<I>;
 }
+
 
 pub(crate) trait CtxDevice<I: IInterface, R: IRequest, C: IConfig<I>>: Send {
     fn pid(&self)->u16;

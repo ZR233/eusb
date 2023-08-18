@@ -1,7 +1,7 @@
-use std::ffi::{CStr, OsStr};
+use std::ffi::{c_char, c_uchar, CStr, CString, FromVecWithNulError, OsStr};
 use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::Arc;
-use libusb_src::libusb_config_descriptor;
+use libusb_src::{libusb_config_descriptor, libusb_get_string_descriptor_ascii};
 use crate::adaptor::IConfig;
 use crate::prelude::CtxDeviceImpl;
 use super::interface::Interface;
@@ -53,7 +53,28 @@ impl IConfig<Interface> for Config {
         unsafe { (*self.ptr).bMaxPower }
     }
 
+    fn configuration(&self) -> String {
+        unsafe {
+            let handle = match self.device.clone().unwrap().get_handle() {
+                Ok(h) => {h}
+                Err(_) => {return String::new()}
+            } ;
+            let index = (*self.ptr).iConfiguration;
+            let mut data = vec![0 as c_uchar; 1024];
+            libusb_get_string_descriptor_ascii(handle.0, index, data.as_mut_ptr(), data.len() as _);
+            let str = CStr::from_bytes_until_nul(&data).unwrap();
+            str.to_str().unwrap().to_string()
+        }
+    }
+
     fn interfaces(&self) -> Vec<Interface> {
-        todo!()
+
+        unsafe {
+            let out = Vec::with_capacity((*self.ptr).bNumInterfaces as _);
+
+
+
+            out
+        }
     }
 }

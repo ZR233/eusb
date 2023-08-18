@@ -20,21 +20,18 @@ mod test{
     #[tokio::test]
     async fn it_works(){
         init();
-
         {
             let m = UsbManager::init_default().unwrap();
-            let d = m.open_device_with_vid_pid(0x1d50, 0x6089).await.unwrap();
-            let sn = d.serial_number().await;
-            // let il = d.interface_list().await.unwrap();
-            debug!("sn: {}, {}-{}", sn, d.pid(), d.vid());
-
-            let configs = d.configs();
-            for cfg in &configs{
-                debug!("extra: {:?}", cfg.extra());
+            let list = m.device_list().await.unwrap();
+            for d in list {
+                let sn = d.serial_number().await;
+                debug!("sn: {}, {}-{} ----------------", sn, d.pid(), d.vid());
+                let configs = d.configs();
+                for cfg in &configs{
+                    debug!("extra: {:?}", cfg.extra());
+                    debug!("configuration: {}", cfg.configuration())
+                }
             }
-
-            debug!("configs: {}", configs.len());
-
         }
 
         tokio::time::sleep(Duration::from_secs(1)).await;
