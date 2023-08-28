@@ -94,7 +94,9 @@ impl Device {
         tx.send(request)?;
         rx.next().await.unwrap()
     }
-
+    pub fn speed(&self)->Result<Speed>{
+        self.ctx.speed()
+    }
 
     pub fn request_channel(&self, buffer: usize) -> (RequestSender, RequestReceiver) {
         self.ctx.transfer_channel(buffer)

@@ -15,13 +15,20 @@ async fn main() {
             Ok(s) => { s }
             Err(_) => { "没有权限，无法获取部分信息".to_string() }
         };
-        msg = format!("Device: pid: {} vid: {} sn: {}", device.pid(), device.vid(), sn);
+        msg = format!(r"
+Device:
+  pid: {}
+  vid: {}
+  sn: {}
+", device.pid(), device.vid(), sn);
         let cfg_list = device.config_list().unwrap();
         for cfg in &cfg_list {
             msg += format!(r"
   Configuration [{}]:
-    value {}
-           ", cfg.configuration, cfg.value).as_str();
+    Value {}
+    MaxPower {} mA
+    Extra {:?}
+           ", cfg.configuration, cfg.value, cfg.max_power,cfg.extra).as_str();
 
             for alts in &cfg.interfaces {
                 let interface = &alts.alt_settings[0];

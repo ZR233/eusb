@@ -169,6 +169,8 @@ impl CtxDeviceImpl {
                             usage_type,
                             max_packet_size: endpoint.wMaxPacketSize,
                             interval: endpoint.bInterval,
+                            refresh: endpoint.bRefresh,
+                            synch_address: endpoint.bSynchAddress,
                             extra,
                         });
                     }
@@ -213,11 +215,28 @@ impl CtxDeviceImpl {
                     }
                 }
             }
+            let mut max_power = 0;
+            let speed = self.speed();
+            match speed {
+                Ok(s) => {
+                  let p =  match s {
+                        Speed::Unknown => {0}
+                        Speed::Low => {0}
+                        Speed::Full => {0}
+                        Speed::High => {2}
+                        Speed::Super => {2}
+                        Speed::SuperPlus => {8}
+                    } as usize;
+                    max_power = p * ((*config_ptr.config).bMaxPower as usize)
+                }
+                Err(_) => {}
+            }
 
             let config = ConfigDescriptor{
                 value: (*config_ptr.config).bConfigurationValue,
                 interfaces: alt_settings,
                 extra,
+                max_power,
                 configuration,
             };
 
@@ -355,6 +374,22 @@ impl CtxDevice<Request, Interface> for CtxDeviceImpl {
     fn get_config(self: &Arc<Self>) -> Result<ConfigDescriptor> {
         let ptr = self.get_active_config_ptr()?;
         Ok(self.fill_config_descriptor(ptr))
+    }
+
+    fn speed(self: &Arc<Self>) -> Result<Speed> {
+        unsafe {
+            let r = libusb_get_device_speed(self.dev);
+            check_err(r)?;
+
+            Ok(match r {
+                LIBUSB_SPEED_LOW=> Speed::Low,
+                LIBUSB_SPEED_FULL=> Speed::Full,
+                LIBUSB_SPEED_HIGH=> Speed::High,
+                LIBUSB_SPEED_SUPER=> Speed::Super,
+                LIBUSB_SPEED_SUPER_PLUS=> Speed::SuperPlus,
+                _ => Speed::Unknown
+            })
+        }
     }
 }
 

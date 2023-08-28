@@ -43,7 +43,9 @@ pub struct EndpointDescriptor {
     pub usage_type: IsoUsageType,
     pub max_packet_size: u16,
     pub interval: u8,
-    pub extra: Vec<u8>
+    pub refresh: u8,
+    pub synch_address: u8,
+    pub extra: Vec<u8>,
 }
 
 impl EndpointDescriptor {
@@ -56,6 +58,8 @@ impl EndpointDescriptor {
             usage_type: IsoUsageType::Data,
             max_packet_size: 0,
             interval: 0,
+            refresh: 0,
+            synch_address: 0,
             extra: vec![],
         }
     }
@@ -103,7 +107,9 @@ pub struct ConfigDescriptor {
     pub value: u8,
     pub interfaces: Vec<InterfaceAltSettingDescriptor>,
     pub extra: Vec<u8>,
-    pub configuration: String
+    /// units of mA
+    pub max_power: usize,
+    pub configuration: String,
 }
 
 

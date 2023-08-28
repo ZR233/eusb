@@ -46,16 +46,11 @@ pub(crate) trait CtxDevice<R: IRequest, I: IInterface<R>>: Send {
     fn pid(&self)->u16;
     fn vid(&self)->u16;
     fn serial_number(self: &Arc<Self>)-> ResultFuture<String>;
+    fn speed(self: &Arc<Self>)->Result<Speed>;
     fn control_request(self: &Arc<Self>,
         param:RequestParamControlTransfer,
         direction: EndpointDirection
     )-> Result<R>;
-
-    // fn bulk_request(
-    //     self: &Arc<Self>,
-    //     endpoint: Endpoint,
-    //     package_len: usize,
-    //     timeout: Duration)-> Result<R>;
 
     fn claim_interface(self: &Arc<Self>, num: usize) ->Result<I>;
     fn get_config(self: &Arc<Self>) ->Result<ConfigDescriptor>;
