@@ -1,9 +1,7 @@
-use std::ffi::{c_char, c_int, c_uchar, CStr};
+use std::ffi::{c_int, c_uchar, CStr};
 use std::ptr::{null, null_mut, slice_from_raw_parts};
-use std::slice::from_raw_parts;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
-use log::{trace, warn};
+use log::{trace};
 use libusb_src::*;
 pub(crate) use super::super::ResultFuture;
 pub(crate) use super::super::CtxDevice;
@@ -14,8 +12,6 @@ use crate::error::*;
 use crate::platform::Request;
 use crate::adaptor::libusb::channel::{request_channel, RequestReceiver, RequestSender};
 use crate::adaptor::*;
-use super::config::Config;
-use crate::define::Endpoint;
 
 pub(crate) struct CtxDeviceImpl {
     pub(crate) dev: *mut libusb_device,
@@ -88,7 +84,7 @@ impl CtxDeviceImpl {
     }
 
     pub(crate) fn get_handle(&self) -> Result<DeviceHandle> {
-        let mut g = self.get_handle_with_guard()?;
+        let g = self.get_handle_with_guard()?;
         Ok(g.clone())
     }
 
@@ -97,31 +93,26 @@ impl CtxDeviceImpl {
         return (tx, rx)
     }
 
-
-    fn get_active_config(self: &Arc<Self>) ->Result<Config>{
+    fn get_active_config_ptr(self: &Arc<Self>) ->Result<ConfigDescriptorPtr>{
         unsafe {
             let mut ptr : *const libusb_config_descriptor = null();
             check_err(libusb_get_active_config_descriptor(
                 self.dev,
                 &mut ptr,
             ))?;
-            let cfg = Config::from(ptr);
-            Ok(cfg)
+            Ok(ConfigDescriptorPtr::from(ptr))
         }
     }
 
 
-
-
-    fn get_config_by_index(self: &Arc<Self>, index: u8)->Result<ConfigDescriptor>{
+    fn fill_config_descriptor(self: &Arc<Self>, config_ptr: ConfigDescriptorPtr) -> ConfigDescriptor {
         let handle = match self.get_handle(){
             Ok(h) => {Some(h)}
             Err(_) => {None}
         };
 
-
         unsafe {
-            let mut config_ptr= ConfigDescriptorPtr::new(self.dev, index)?;
+
             let mut alt_settings = Vec::with_capacity((*config_ptr.config).bNumInterfaces as _);
             let interface_list = &*slice_from_raw_parts(
                 (*config_ptr.config).interface,
@@ -230,9 +221,13 @@ impl CtxDeviceImpl {
                 configuration,
             };
 
-
-            Ok(config)
+            config
         }
+    }
+
+    fn get_config_by_index(self: &Arc<Self>, index: u8)->Result<ConfigDescriptor>{
+        let config_ptr= ConfigDescriptorPtr::new(self.dev, index)?;
+        Ok(self.fill_config_descriptor(config_ptr))
     }
 }
 
@@ -249,7 +244,7 @@ impl Drop for AutoDetachKernelDriverGuard {
 }
 
 
-impl CtxDevice<Interface, Request, Config> for CtxDeviceImpl {
+impl CtxDevice<Request, Interface> for CtxDeviceImpl {
     fn pid(&self) -> u16 {
         let desc = self.descriptor();
         desc.idProduct
@@ -295,51 +290,34 @@ impl CtxDevice<Interface, Request, Config> for CtxDeviceImpl {
         Ok(request)
     }
 
-    fn bulk_request(
-        self: &Arc<Self>,
-        endpoint: Endpoint,
-        package_len: usize,
-        timeout: Duration)-> Result<Request>{
-
-        Request::bulk(self, endpoint, package_len, timeout)
-    }
 
 
     fn claim_interface(self: &Arc<Self>, num: usize) -> Result<Interface> {
         Interface::new(self, num)
     }
 
+    fn set_config(self: &Arc<Self>, config: u8)->Result<()> {
 
-    fn get_config_with_device(self: &Arc<Self>) -> Result<Config> {
-        unsafe {
-            let mut cfg = self.get_active_config()?;
-            cfg.device = Some(self.clone());
-            Ok(cfg)
-        }
-    }
-
-    fn set_config(self: &Arc<Self>, config: Config)->Result<()> {
-        let config = config.configuration_value();
         let guard = self.get_handle_with_guard()?;
         let dev = guard.0;
         unsafe {
             let mut need_set = true;
             let mut num_interfaces = 0;
-            match self.get_active_config(){
+            match self.get_active_config_ptr(){
                 Ok(old_cfg) => {
-                    num_interfaces = (*old_cfg.ptr).bNumInterfaces;
-                    need_set = old_cfg.configuration_value() != config;
+                    num_interfaces = (*old_cfg.config).bNumInterfaces;
+                    need_set = (*old_cfg.config).bConfigurationValue != config;
                 }
                 Err(_) => {}
             };
-            let mut r=0;
+            let mut r;
             // {
             if need_set {
                 libusb_set_auto_detach_kernel_driver(dev, 0);
                 let auto_detach = AutoDetachKernelDriverGuard{dev};
 
                 for i in 0..num_interfaces{
-                    r  = libusb_kernel_driver_active(dev, i as _);
+                   r  = libusb_kernel_driver_active(dev, i as _);
                     if r  < 0 {
                         if r  == LIBUSB_ERROR_NOT_SUPPORTED {
                             break;
@@ -365,13 +343,18 @@ impl CtxDevice<Interface, Request, Config> for CtxDeviceImpl {
     fn config_list(self: &Arc<Self>) -> Result<Vec<ConfigDescriptor>> {
         let desc = self.descriptor();
         let mut configs = Vec::with_capacity(desc.bNumConfigurations as _);
-        unsafe {
-            for i in 0..desc.bNumConfigurations{
-                let cfg = self.get_config_by_index(i)?;
-                configs.push(cfg);
-            }
+
+        for i in 0..desc.bNumConfigurations{
+            let cfg = self.get_config_by_index(i)?;
+            configs.push(cfg);
         }
+
         Ok(configs)
+    }
+
+    fn get_config(self: &Arc<Self>) -> Result<ConfigDescriptor> {
+        let ptr = self.get_active_config_ptr()?;
+        Ok(self.fill_config_descriptor(ptr))
     }
 }
 

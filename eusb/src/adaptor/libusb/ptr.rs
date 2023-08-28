@@ -1,6 +1,6 @@
 use std::ptr::null_mut;
 use libusb_src::*;
-use crate::define::DeviceClass;
+use crate::define::{DeviceClass};
 use crate::error::*;
 
 #[derive(Copy, Clone)]
@@ -51,7 +51,12 @@ impl ConfigDescriptorPtr{
             Ok( Self{config: config_ptr})
         }
     }
+}
 
+impl From<*const libusb_config_descriptor> for ConfigDescriptorPtr{
+    fn from(value: *const libusb_config_descriptor) -> Self {
+        Self{config: value}
+    }
 }
 
 impl Drop for ConfigDescriptorPtr{

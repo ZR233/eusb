@@ -1,5 +1,4 @@
 pub(crate) mod libusb;
-use std::fmt::Display;
 use std::future::Future;
 #[cfg(unix)]
 use std::os::fd::RawFd;
@@ -34,22 +33,16 @@ pub trait IRequest {
 pub(crate) type ResultFuture<T> = Pin<Box<dyn Future<Output=Result<T>> + Send>>;
 
 pub(crate) trait IManager{}
-pub trait IInterface: Send {}
-
-pub trait IConfig<I: IInterface>{
-    fn with_value(value: i32)->Self;
-    /// Identifier value for this configuration.
-    fn configuration_value(&self)->i32;
-    /// Extra descriptors.
-    fn extra(&self)-> Vec<u8>;
-    /// Maximum power consumption of the USB device from this bus in this configuration when the device is fully operation.
-    /// Expressed in units of 2 mA when the device is operating in high-speed mode and in units of 8 mA when the device is operating in super-speed mode.
-    fn max_power(&self)-> u8;
-    fn configuration(&self)->Result<String>;
+pub trait IInterface<R: IRequest>: Send {
+    fn bulk_request(
+        &self,
+        endpoint: EndpointDescriptor,
+        package_len: usize,
+        timeout: Duration)-> Result<R>;
 }
 
 
-pub(crate) trait CtxDevice<I: IInterface, R: IRequest, C: IConfig<I>>: Send {
+pub(crate) trait CtxDevice<R: IRequest, I: IInterface<R>>: Send {
     fn pid(&self)->u16;
     fn vid(&self)->u16;
     fn serial_number(self: &Arc<Self>)-> ResultFuture<String>;
@@ -58,23 +51,22 @@ pub(crate) trait CtxDevice<I: IInterface, R: IRequest, C: IConfig<I>>: Send {
         direction: EndpointDirection
     )-> Result<R>;
 
-    fn bulk_request(
-        self: &Arc<Self>,
-        endpoint: Endpoint,
-        package_len: usize,
-        timeout: Duration)-> Result<R>;
+    // fn bulk_request(
+    //     self: &Arc<Self>,
+    //     endpoint: Endpoint,
+    //     package_len: usize,
+    //     timeout: Duration)-> Result<R>;
 
     fn claim_interface(self: &Arc<Self>, num: usize) ->Result<I>;
-    fn get_config_with_device(self: &Arc<Self>) ->Result<C>;
-    fn set_config(self: &Arc<Self>, config: C)->Result<()>;
+    fn get_config(self: &Arc<Self>) ->Result<ConfigDescriptor>;
+    fn set_config(self: &Arc<Self>, config_value: u8)->Result<()>;
     fn config_list(self: &Arc<Self>) ->Result<Vec<ConfigDescriptor>>;
 }
 
 pub(crate) trait CtxManager<
-    I: IInterface,
     R: IRequest,
-    C: IConfig<I>,
-    D: CtxDevice<I, R, C>>: Send {
+    I: IInterface<R>,
+    D: CtxDevice<R, I>>: Send {
     fn device_list(&self)-> ResultFuture<Vec<D>>;
 
     #[cfg(unix)]

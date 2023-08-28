@@ -66,12 +66,4 @@ async fn main() {
 
         info!("{}", msg)
     }
-
-
-    // let device = manager.open_device_with_vid_pid(0x1d50, 0x6089)..unwrap();
-    // let c = device.get_configuration().unwrap();
-    // debug!("config: {}",c);
-    // device.set_configuration(1).unwrap();
-    //
-    // debug!("all finish");
 }

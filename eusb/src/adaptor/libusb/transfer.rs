@@ -59,11 +59,11 @@ impl ToLib for UsbControlRecipient {
         t as _
     }
 }
-impl ToLib for Endpoint {
+impl ToLib for EndpointDescriptor {
     fn to_lib(self) -> u32 {
-        match self {
-            Endpoint::In {num} => (LIBUSB_ENDPOINT_IN as u32 ) | (num as u32),
-            Endpoint::Out {num} => (LIBUSB_ENDPOINT_OUT as u32) | (num as u32),
+        match self.direction {
+            Direction::In  => (LIBUSB_ENDPOINT_IN as u32 ) | (self.num as u32),
+            Direction::Out => (LIBUSB_ENDPOINT_OUT as u32) | (self.num as u32),
         }
     }
 }
@@ -135,7 +135,7 @@ impl Request {
 
     pub(crate) fn bulk(
         device: &Arc<CtxDeviceImpl>,
-        endpoint: Endpoint,
+        endpoint: EndpointDescriptor,
         package_len: usize,
         timeout: Duration
     ) -> Result<Self> {

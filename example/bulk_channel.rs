@@ -11,42 +11,28 @@ async fn main(){
     {
         let manager = UsbManager::init_default().unwrap();
         let device = manager.open_device_with_vid_pid(0x1d50, 0x6089).await.unwrap();
-        let cfg = Config::with_value(0);
-        cfg.interfaces();
-
-        let mut request = ControlTransferRequest::default();
-        request.recipient = UsbControlRecipient::Device;
-        request.transfer_type = UsbControlTransferType::Vendor;
-        request.request = 1;
-        request.value = 0;
-        device.set_configuration(1).unwrap();
         device.control_transfer_out(
-            request,
-            &[0; 0],
+            UsbControlRecipient::Device,
+            UsbControlTransferType::Vendor,
+            1,0,0, Duration::default(),
+            &mut [0; 0],
         ).await.unwrap();
 
-        let mut request = ControlTransferRequest::default();
-        request.recipient = UsbControlRecipient::Device;
-        request.transfer_type = UsbControlTransferType::Vendor;
-        request.request = 1;
-        request.value = 1;
-
         device.control_transfer_out(
-            request,
-            &[0; 0],
+            UsbControlRecipient::Device,
+            UsbControlTransferType::Vendor,
+            1,1,0, Duration::default(),
+            &mut [0; 0],
         ).await.unwrap();
 
-        let mut interface = device.get_interface(0).unwrap();
-        let mut option = BulkChannelOption::default();
-        option.request_size=2;
+        let interface = device.claim_interface_by_num(0).unwrap();
 
-        let mut rx = interface.open_bulk_in_channel(BulkTransferRequest {
-            endpoint: 1,
-            package_len: 262144,
-            timeout: Default::default(),
-        }, BulkChannelOption::default()).unwrap();
-
+        let bulk1 = interface.bulk_request(EndpointDescriptor::new(1, Direction::In), 262144, Duration::default()).unwrap();
+        let bulk2 = interface.bulk_request(EndpointDescriptor::new(1, Direction::In), 262144, Duration::default()).unwrap();
+        let (mut tx, mut rx) = device.request_channel(10);
         let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel();
+        tx.send(bulk1).unwrap();
+        tx.send(bulk2).unwrap();
 
         tokio::spawn(async move {
             let mut all = 0usize;
@@ -55,8 +41,13 @@ async fn main(){
                 select! {
                     res = rx.next() => {
                         match res{
-                            Some(data)=> {
-                                 all += data.len();
+                            Some(r)=> {
+                                let mut result = r.unwrap();
+                                 all += result.data().len();
+                                 let r = tx.send(result);
+                                    if r.is_err(){
+                                        break;
+                                    }
                             }
                             None=>break,
                         }
@@ -77,11 +68,12 @@ async fn main(){
 
 
         tokio::time::sleep(Duration::from_secs(5)).await;
-        let mut request = ControlTransferRequest::default();
-        request.recipient = UsbControlRecipient::Device;
-        request.transfer_type = UsbControlTransferType::Vendor;
-        request.request = 1;
-        request.value = 0;
+        // device.control_transfer_out(
+        //     UsbControlRecipient::Device,
+        //     UsbControlTransferType::Vendor,
+        //     1,0,0, Duration::default(),
+        //     &mut [0; 0],
+        // ).await.unwrap();
 
         // let start = Instant::now();
         //
@@ -95,7 +87,6 @@ async fn main(){
         stop_tx.send(1).unwrap();
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-
 
     tokio::time::sleep(Duration::from_secs(1)).await;
     info!("finish");

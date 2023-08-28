@@ -4,14 +4,12 @@ mod manager;
 mod device;
 mod channel;
 mod transfer;
-mod config;
 pub use transfer::Request;
 pub(crate) use manager::Manager;
 pub(crate) use device::CtxDeviceImpl;
 pub use interface::Interface;
 pub use channel::RequestReceiver;
 pub use channel::RequestSender;
-pub use config::Config;
 
 
 

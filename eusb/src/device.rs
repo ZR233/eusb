@@ -37,11 +37,15 @@ impl Device {
         self.ctx.config_list()
     }
 
-    pub fn get_config(&self)->Result<Config>{ self.ctx.get_config_with_device() }
-    pub fn set_config(&self, config: Config)->Result<()>{ self.ctx.set_config(config)}
+    pub fn get_config(&self)->Result<ConfigDescriptor>{ self.ctx.get_config() }
+    pub fn set_config(&self, config: ConfigDescriptor)->Result<()>{ self.ctx.set_config(config.value)}
+    pub fn set_config_by_value(&self, config_value: u8)->Result<()>{ self.ctx.set_config(config_value)}
 
-    pub fn get_interface(&self, num: usize)->  Result<Interface>{
+    pub fn claim_interface_by_num(&self, num: usize) ->  Result<Interface>{
         self.ctx.claim_interface(num)
+    }
+    pub fn claim_interface(&self, interface: InterfaceDescriptor) ->  Result<Interface>{
+        self.ctx.claim_interface(interface.num as _)
     }
 
     pub async fn control_transfer_in(
@@ -94,11 +98,5 @@ impl Device {
 
     pub fn request_channel(&self, buffer: usize) -> (RequestSender, RequestReceiver) {
         self.ctx.transfer_channel(buffer)
-    }
-
-    pub fn bulk_request(&self, endpoint: Endpoint,
-                        package_len: usize,
-                        timeout: Duration)->Result<Request>{
-        self.ctx.bulk_request(endpoint, package_len, timeout)
     }
 }

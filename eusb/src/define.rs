@@ -13,10 +13,6 @@ pub enum UsbControlTransferType {
     Reserved
 }
 
-pub enum Endpoint{
-    In{num: u8},
-    Out{num: u8},
-}
 
 #[derive(Debug)]
 pub enum Direction{
@@ -49,6 +45,23 @@ pub struct EndpointDescriptor {
     pub interval: u8,
     pub extra: Vec<u8>
 }
+
+impl EndpointDescriptor {
+    pub fn new(num: u8, direction: Direction) -> Self {
+        Self{
+            num,
+            direction,
+            transfer_type: EndpointTransferType::Control,
+            sync_type: IsoSyncType::None,
+            usage_type: IsoUsageType::Data,
+            max_packet_size: 0,
+            interval: 0,
+            extra: vec![],
+        }
+    }
+}
+
+
 #[derive(Debug)]
 pub enum  DeviceClass{
     PerInterface,

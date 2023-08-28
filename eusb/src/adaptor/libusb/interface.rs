@@ -1,9 +1,12 @@
 use std::sync::Arc;
+use std::time::Duration;
 use log::trace;
 use libusb_src::*;
+use crate::define::{EndpointDescriptor};
 use super::device::CtxDeviceImpl;
 use super::super::IInterface;
 use crate::error::*;
+use crate::platform::Request;
 
 pub struct Interface {
     num: usize,
@@ -34,7 +37,11 @@ impl Interface {
 }
 
 
-impl IInterface for Interface {}
+impl IInterface<Request> for Interface {
+    fn bulk_request(&self, endpoint: EndpointDescriptor, package_len: usize, timeout: Duration) -> Result<Request> {
+        Request::bulk(&self.device, endpoint, package_len, timeout)
+    }
+}
 
 impl Drop for Interface {
     fn drop(&mut self) {

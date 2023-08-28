@@ -2,14 +2,16 @@ pub use crate::manager::*;
 pub use crate::define::*;
 pub use crate::device::*;
 pub use crate::platform::*;
+pub use crate::adaptor::*;
 
 #[cfg(test)]
 mod test{
     use std::time::{Duration, Instant};
     use log::{debug, info, LevelFilter};
     use tokio::select;
-    use crate::adaptor::{IConfig, IInterface, IRequest};
+    use crate::adaptor::*;
     use super::*;
+
     fn init() {
         let _ = env_logger::builder().filter_level(LevelFilter::Trace).is_test(true).try_init();
     }
@@ -35,13 +37,13 @@ mod test{
                 debug!("sn: {}, {}-{} ----------------", sn, d.pid(), d.vid());
                 let configs = d.config_list().unwrap();
                 for cfg in &configs{
-                    debug!("extra: {:?}", cfg.extra());
-                    debug!("configuration: {}", cfg.configuration().unwrap())
+                    debug!("extra: {:?}", cfg.extra);
+                    debug!("configuration: {}", cfg.configuration)
                 }
 
                 let cfg = d.get_config().unwrap();
 
-                debug!("default configuration: {}", cfg.configuration().unwrap())
+                debug!("default configuration: {}", cfg.configuration)
             }
         }
 
@@ -57,10 +59,10 @@ mod test{
             let device = get_hackrf(&m).await;
             let cfg = device.get_config().unwrap();
 
-            let old = cfg.configuration_value();
+            let old = cfg.value;
             debug!("config: {}", old);
             // device.set_config(Config::with_value(-1)).unwrap();
-            device.set_config(Config::with_value(1)).unwrap();
+            device.set_config_by_value(1).unwrap();
 
         }
 
@@ -113,11 +115,10 @@ mod test{
                 &mut [0; 0],
             ).await.unwrap();
 
-            let interface = device.get_interface(0).unwrap();
-            interface.claim().unwrap();
+            let interface = device.claim_interface_by_num(0).unwrap();
 
-            let bulk1 = device.bulk_request(Endpoint::In {num: 1}, 262144, Duration::default()).unwrap();
-            let bulk2 = device.bulk_request(Endpoint::In {num: 1}, 262144, Duration::default()).unwrap();
+            let bulk1 = interface.bulk_request(EndpointDescriptor::new(1, Direction::In), 262144, Duration::default()).unwrap();
+            let bulk2 = interface.bulk_request(EndpointDescriptor::new(1, Direction::In), 262144, Duration::default()).unwrap();
             let (mut tx, mut rx) = device.request_channel(10);
             let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel();
             tx.send(bulk1).unwrap();
