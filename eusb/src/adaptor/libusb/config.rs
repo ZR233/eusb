@@ -79,14 +79,5 @@ impl IConfig<Interface> for Config {
         }
     }
 
-    fn interfaces(&self) -> Vec<Interface> {
 
-        unsafe {
-            let out = Vec::with_capacity((*self.ptr).bNumInterfaces as _);
-
-
-
-            out
-        }
-    }
 }

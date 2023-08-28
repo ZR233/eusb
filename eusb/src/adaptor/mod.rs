@@ -34,9 +34,7 @@ pub trait IRequest {
 pub(crate) type ResultFuture<T> = Pin<Box<dyn Future<Output=Result<T>> + Send>>;
 
 pub(crate) trait IManager{}
-pub trait IInterface: Send {
-    fn claim(&self)->Result<()>;
-}
+pub trait IInterface: Send {}
 
 pub trait IConfig<I: IInterface>{
     fn with_value(value: i32)->Self;
@@ -48,7 +46,6 @@ pub trait IConfig<I: IInterface>{
     /// Expressed in units of 2 mA when the device is operating in high-speed mode and in units of 8 mA when the device is operating in super-speed mode.
     fn max_power(&self)-> u8;
     fn configuration(&self)->Result<String>;
-    fn interfaces(&self)->Vec<I>;
 }
 
 
@@ -67,10 +64,10 @@ pub(crate) trait CtxDevice<I: IInterface, R: IRequest, C: IConfig<I>>: Send {
         package_len: usize,
         timeout: Duration)-> Result<R>;
 
-    fn get_interface(self: &Arc<Self>, num: usize)->Result<I>;
+    fn claim_interface(self: &Arc<Self>, num: usize) ->Result<I>;
     fn get_config_with_device(self: &Arc<Self>) ->Result<C>;
     fn set_config(self: &Arc<Self>, config: C)->Result<()>;
-    fn config_list(self: &Arc<Self>) ->Result<Vec<C>>;
+    fn config_list(self: &Arc<Self>) ->Result<Vec<ConfigDescriptor>>;
 }
 
 pub(crate) trait CtxManager<

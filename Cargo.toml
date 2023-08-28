@@ -1,25 +1,3 @@
-#[package]
-#name = "eusb"
-#version = "0.1.0"
-#authors = ["zhour rui <zrufo747@outlook.com>"]
-#description = "Rust library for accessing USB devices."
-#license = "MIT"
-#homepage = "https://github.com/ZR233/eusb"
-#repository = "https://github.com/ZR233/eusb.git"
-#readme = "README.md"
-#keywords = ["usb", "libusb", "hardware"]
-#edition = "2021"
-
 [workspace]
 members = ["libusb-src", "eusb", "example"]
 resolver = "2"
-#[dependencies]
-#libusb-src = {path = "libusb-src", version = "1.26"}
-#thiserror = "1.0"
-#futures = "0.3"
-#log = "0.4"
-#pin-project = "1.1"
-#
-#[dev-dependencies]
-#tokio = { version = "1", features = ["full"] }
-#env_logger = "0.10.0"

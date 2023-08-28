@@ -1,5 +1,6 @@
-use std::ffi::c_int;
-use std::ptr::{null, null_mut};
+use std::ffi::{c_char, c_int, c_uchar, CStr};
+use std::ptr::{null, null_mut, slice_from_raw_parts};
+use std::slice::from_raw_parts;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 use log::{trace, warn};
@@ -25,6 +26,34 @@ pub(crate) struct CtxDeviceImpl {
 
 unsafe impl Send for CtxDeviceImpl {}
 unsafe impl Sync for CtxDeviceImpl {}
+
+fn get_string(handle: DeviceHandle, index: u8)->Result<String>{
+    let mut data = vec![0 as c_uchar; 1024];
+    unsafe {
+        libusb_get_string_descriptor_ascii(handle.0, index, data.as_mut_ptr(), data.len() as _);
+        let str = CStr::from_bytes_until_nul(&data)
+            .map_err(|e|{
+                Error::Other(e.to_string())
+            })?;
+        let str = str.to_str().map_err(|e|{
+            Error::Other(e.to_string())
+        })?;
+        Ok(str.to_string())
+    }
+}
+fn get_extra(
+   extra: *const c_uchar,
+   extra_length: c_int,
+)->Vec<u8>{
+    if extra_length ==0 {
+        return vec![];
+    }
+
+    unsafe {
+        let  data = &*slice_from_raw_parts(extra as *const u8, extra_length as usize);
+        data.to_vec()
+    }
+}
 
 impl CtxDeviceImpl {
     pub(crate) fn new(dev: *mut libusb_device)->Self{
@@ -68,16 +97,6 @@ impl CtxDeviceImpl {
         return (tx, rx)
     }
 
-    fn get_config_by_index(self: &Arc<Self>, index: u8)->Result<Config>{
-        unsafe {
-            let mut config_ptr: *const libusb_config_descriptor = null_mut();
-            let r = libusb_get_config_descriptor(self.dev, index, &mut config_ptr);
-            check_err(r)?;
-            let mut cfg = Config::from(config_ptr);
-            cfg.device = Some(self.clone());
-            Ok(cfg)
-        }
-    }
 
     fn get_active_config(self: &Arc<Self>) ->Result<Config>{
         unsafe {
@@ -88,6 +107,131 @@ impl CtxDeviceImpl {
             ))?;
             let cfg = Config::from(ptr);
             Ok(cfg)
+        }
+    }
+
+
+
+
+    fn get_config_by_index(self: &Arc<Self>, index: u8)->Result<ConfigDescriptor>{
+        let handle = match self.get_handle(){
+            Ok(h) => {Some(h)}
+            Err(_) => {None}
+        };
+
+
+        unsafe {
+            let mut config_ptr= ConfigDescriptorPtr::new(self.dev, index)?;
+            let mut alt_settings = Vec::with_capacity((*config_ptr.config).bNumInterfaces as _);
+            let interface_list = &*slice_from_raw_parts(
+                (*config_ptr.config).interface,
+                alt_settings.capacity());
+            for desc in interface_list {
+                let mut alts = Vec::with_capacity((*desc).num_altsetting as _);
+
+                let alts_ptr = &*slice_from_raw_parts(
+                    (*desc).altsetting,
+                    (*desc).num_altsetting as _
+                );
+                for interface in alts_ptr {
+                    let mut endpoints = Vec::with_capacity(interface.bNumEndpoints as _);
+                    let endpoint_list = &*slice_from_raw_parts(interface.endpoint, endpoints.capacity());
+                    for endpoint in endpoint_list {
+                        let direction = if endpoint.bEndpointAddress as u32 & LIBUSB_ENDPOINT_IN as u32 == LIBUSB_ENDPOINT_IN as u32{
+                            Direction::In
+                        } else { Direction::Out };
+                        let num = endpoint.bEndpointAddress as u32 & LIBUSB_ENDPOINT_ADDRESS_MASK as u32;
+
+                        let extra = get_extra(endpoint.extra, endpoint.extra_length);
+                        let type_int = endpoint.bmAttributes as u32 & LIBUSB_TRANSFER_TYPE_MASK as u32;
+                        let transfer_type = match type_int as u8 {
+                            LIBUSB_TRANSFER_TYPE_ISOCHRONOUS => EndpointTransferType::Isochronous,
+                            LIBUSB_TRANSFER_TYPE_INTERRUPT => EndpointTransferType::Interrupt,
+                            LIBUSB_TRANSFER_TYPE_BULK => EndpointTransferType::Bulk,
+                            LIBUSB_TRANSFER_TYPE_CONTROL => EndpointTransferType::Control,
+                            _ => panic!("Transfer type error"),
+                        };
+
+                        let sync_type_int = endpoint.bmAttributes as u32 & LIBUSB_ISO_SYNC_TYPE_MASK as u32;
+                        let sync_type = match sync_type_int  as u8{
+                            LIBUSB_ISO_SYNC_TYPE_NONE => IsoSyncType::None,
+                            LIBUSB_ISO_SYNC_TYPE_ASYNC=> IsoSyncType::Async,
+                            LIBUSB_ISO_SYNC_TYPE_ADAPTIVE => IsoSyncType::Adaptive,
+                            LIBUSB_ISO_SYNC_TYPE_SYNC => IsoSyncType::Sync,
+                            _ => panic!("Iso sync type error {}", sync_type_int),
+                        };
+
+                        let usage_type_int = (endpoint.bmAttributes as u32 & LIBUSB_ISO_USAGE_TYPE_MASK as u32) as u8;
+                        let usage_type = match usage_type_int {
+                            LIBUSB_ISO_USAGE_TYPE_DATA => IsoUsageType::Data,
+                            LIBUSB_ISO_USAGE_TYPE_FEEDBACK => IsoUsageType::Feedback,
+                            LIBUSB_ISO_USAGE_TYPE_IMPLICIT => IsoUsageType::Implicit,
+                            _ => IsoUsageType::Unknown(usage_type_int),
+                        };
+
+
+                        endpoints.push(EndpointDescriptor{
+                            num: num as _,
+                            direction,
+                            transfer_type,
+                            sync_type,
+                            usage_type,
+                            max_packet_size: endpoint.wMaxPacketSize,
+                            interval: endpoint.bInterval,
+                            extra,
+                        });
+                    }
+                    let extra = get_extra(interface.extra, interface.extra_length);
+                    let mut interface_string = String::new();
+
+                    match handle {
+                        None => {}
+                        Some(h) => {
+                            match get_string(h, interface.iInterface) {
+                                Ok(s) => {interface_string=s}
+                                Err(_) => {}
+                            }
+                        }
+                    }
+
+                    alts.push(InterfaceDescriptor{
+                        num: interface.bInterfaceNumber,
+                        alt_setting: interface.bAlternateSetting,
+                        device_class: class_from_lib(interface.bInterfaceClass),
+                        device_sub_class: class_from_lib(interface.bInterfaceSubClass),
+                        protocol: class_from_lib(interface.bInterfaceProtocol),
+                        interface: interface_string,
+                        endpoints,
+                        extra
+                    })
+                }
+
+
+                alt_settings.push(InterfaceAltSettingDescriptor{
+                    alt_settings: alts,
+                })
+            }
+            let extra = get_extra((*config_ptr.config).extra, (*config_ptr.config).extra_length);
+            let mut configuration = String::new();
+            match handle {
+                None => {}
+                Some(h) => {
+                    match get_string(h, (*config_ptr.config).iConfiguration) {
+                        Ok(s) => {configuration=s}
+                        Err(_) => {}
+                    }
+                }
+            }
+
+            let config = ConfigDescriptor{
+                value: (*config_ptr.config).bConfigurationValue,
+                interfaces: alt_settings,
+                extra,
+                configuration,
+            };
+
+
+            Ok(config)
         }
     }
 }
@@ -161,7 +305,7 @@ impl CtxDevice<Interface, Request, Config> for CtxDeviceImpl {
     }
 
 
-    fn get_interface(self: &Arc<Self>, num: usize) -> Result<Interface> {
+    fn claim_interface(self: &Arc<Self>, num: usize) -> Result<Interface> {
         Interface::new(self, num)
     }
 
@@ -215,16 +359,15 @@ impl CtxDevice<Interface, Request, Config> for CtxDeviceImpl {
             }
         }
         Ok(())
-
-
     }
 
-    fn config_list(self: &Arc<Self>) -> Result<Vec<Config>> {
+
+    fn config_list(self: &Arc<Self>) -> Result<Vec<ConfigDescriptor>> {
         let desc = self.descriptor();
         let mut configs = Vec::with_capacity(desc.bNumConfigurations as _);
         unsafe {
             for i in 0..desc.bNumConfigurations{
-               let cfg = self.get_config_by_index(i)?;
+                let cfg = self.get_config_by_index(i)?;
                 configs.push(cfg);
             }
         }

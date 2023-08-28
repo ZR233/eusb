@@ -1,6 +1,5 @@
 use std::sync::{Arc};
 use std::time::Duration;
-use log::{warn};
 use crate::platform::*;
 use crate::adaptor::{CtxDevice, EndpointDirection, RequestParamControlTransfer};
 use crate::define::*;
@@ -34,7 +33,7 @@ impl Device {
         self.ctx.serial_number().await
     }
 
-    pub fn config_list(&self) ->Result<Vec<Config>>{
+    pub fn config_list(&self) ->Result<Vec<ConfigDescriptor>>{
         self.ctx.config_list()
     }
 
@@ -42,7 +41,7 @@ impl Device {
     pub fn set_config(&self, config: Config)->Result<()>{ self.ctx.set_config(config)}
 
     pub fn get_interface(&self, num: usize)->  Result<Interface>{
-        self.ctx.get_interface(num)
+        self.ctx.claim_interface(num)
     }
 
     pub async fn control_transfer_in(
