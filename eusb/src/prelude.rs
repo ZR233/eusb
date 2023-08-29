@@ -117,8 +117,8 @@ mod test{
 
             let interface = device.claim_interface_by_num(0).unwrap();
 
-            let bulk1 = interface.bulk_request(EndpointDescriptor::new(1, Direction::In), 262144, Duration::default()).unwrap();
-            let bulk2 = interface.bulk_request(EndpointDescriptor::new(1, Direction::In), 262144, Duration::default()).unwrap();
+            let bulk1 = interface.bulk_request(EndpointDescriptor::new(1, Direction::In), vec![0; 262144] , Duration::default()).unwrap();
+            let bulk2 = interface.bulk_request(EndpointDescriptor::new(1, Direction::In), vec![0; 262144] , Duration::default()).unwrap();
             let (mut tx, mut rx) = device.request_channel(10);
             let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel();
             tx.send(bulk1).unwrap();
