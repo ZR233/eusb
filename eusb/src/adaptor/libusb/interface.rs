@@ -38,8 +38,12 @@ impl Interface {
 
 
 impl IInterface<Request> for Interface {
-    fn bulk_request(&self, endpoint: EndpointDescriptor, package_len: usize, timeout: Duration) -> Result<Request> {
-        Request::bulk(&self.device, endpoint, package_len, timeout)
+    fn bulk_request(&self, endpoint: EndpointDescriptor, data:Vec<u8>, timeout: Duration) -> Result<Request> {
+        Request::bulk(&self.device, endpoint, data, timeout)
+    }
+
+    fn interrupt_request(&self, endpoint: EndpointDescriptor, data: Vec<u8>, timeout: Duration) -> Result<Request> {
+        Request::interrupt(&self.device, endpoint, data, timeout)
     }
 }
 

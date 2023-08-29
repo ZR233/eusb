@@ -304,15 +304,68 @@ impl CtxDevice<Request, Interface> for CtxDeviceImpl {
         })
     }
 
+    fn speed(self: &Arc<Self>) -> Result<Speed> {
+        unsafe {
+            let r = libusb_get_device_speed(self.dev);
+            check_err(r)?;
+
+            Ok(match r {
+                LIBUSB_SPEED_LOW=> Speed::Low,
+                LIBUSB_SPEED_FULL=> Speed::Full,
+                LIBUSB_SPEED_HIGH=> Speed::High,
+                LIBUSB_SPEED_SUPER=> Speed::Super,
+                LIBUSB_SPEED_SUPER_PLUS=> Speed::SuperPlus,
+                _ => Speed::Unknown
+            })
+        }
+    }
+
+
+    fn bcd_usb(&self) -> u16 {
+        self.descriptor().bcdUSB
+    }
+
+    fn device_class(&self) -> DeviceClass {
+        class_from_lib(self.descriptor().bDeviceClass)
+    }
+
+
+    fn device_subclass(&self) -> DeviceClass {
+        class_from_lib(self.descriptor().bDeviceSubClass)
+    }
+
+    fn device_protocol(&self) -> DeviceClass {
+        class_from_lib(self.descriptor().bDeviceProtocol)
+    }
+
+    fn max_packet_size_0(&self) -> usize {
+        self.descriptor().bMaxPacketSize0 as usize
+    }
+
+    fn bcd_device(&self) -> u16 {
+        self.descriptor().bcdDevice
+    }
+
+    fn manufacturer(self: &Arc<Self>) -> Result<String> {
+        get_string(self.get_handle()?, self.descriptor().iManufacturer)
+    }
+
+    fn product(self: &Arc<Self>) -> Result<String> {
+        get_string(self.get_handle()?, self.descriptor().iProduct)
+    }
+
     fn control_request(self: &Arc<Self>, param: RequestParamControlTransfer, direction: EndpointDirection) -> Result<Request> {
         let request = Request::control(self, param, direction)?;
         Ok(request)
     }
 
-
-
     fn claim_interface(self: &Arc<Self>, num: usize) -> Result<Interface> {
         Interface::new(self, num)
+    }
+
+    fn get_config(self: &Arc<Self>) -> Result<ConfigDescriptor> {
+        let ptr = self.get_active_config_ptr()?;
+        Ok(self.fill_config_descriptor(ptr))
     }
 
     fn set_config(self: &Arc<Self>, config: u8)->Result<()> {
@@ -358,7 +411,6 @@ impl CtxDevice<Request, Interface> for CtxDeviceImpl {
         Ok(())
     }
 
-
     fn config_list(self: &Arc<Self>) -> Result<Vec<ConfigDescriptor>> {
         let desc = self.descriptor();
         let mut configs = Vec::with_capacity(desc.bNumConfigurations as _);
@@ -369,27 +421,6 @@ impl CtxDevice<Request, Interface> for CtxDeviceImpl {
         }
 
         Ok(configs)
-    }
-
-    fn get_config(self: &Arc<Self>) -> Result<ConfigDescriptor> {
-        let ptr = self.get_active_config_ptr()?;
-        Ok(self.fill_config_descriptor(ptr))
-    }
-
-    fn speed(self: &Arc<Self>) -> Result<Speed> {
-        unsafe {
-            let r = libusb_get_device_speed(self.dev);
-            check_err(r)?;
-
-            Ok(match r {
-                LIBUSB_SPEED_LOW=> Speed::Low,
-                LIBUSB_SPEED_FULL=> Speed::Full,
-                LIBUSB_SPEED_HIGH=> Speed::High,
-                LIBUSB_SPEED_SUPER=> Speed::Super,
-                LIBUSB_SPEED_SUPER_PLUS=> Speed::SuperPlus,
-                _ => Speed::Unknown
-            })
-        }
     }
 }
 

@@ -71,7 +71,7 @@ impl ToLib for EndpointDescriptor {
 impl Request {
     pub(crate) fn new(
         iso_packets: u32,
-        buff_size: usize,
+        data:Vec<u8>,
     ) -> Result<Self> {
         let ptr = unsafe {
             let t = libusb_alloc_transfer(iso_packets as _);
@@ -83,7 +83,7 @@ impl Request {
 
         Ok(Self {
             ptr: Transfer(ptr),
-            buff: vec![0; buff_size],
+            buff: data,
         })
     }
 
@@ -96,8 +96,8 @@ impl Request {
             EndpointDirection::In { capacity } => capacity,
             EndpointDirection::Out { src } => { src.len() as _ }
         };
-
-        let mut s = Self::new(0, LIBUSB_CONTROL_SETUP_SIZE + (data_len))?;
+        let data = vec![0; LIBUSB_CONTROL_SETUP_SIZE + (data_len)];
+        let mut s = Self::new(0, data)?;
 
         if let EndpointDirection::Out { src } = direction {
             for i in 0..src.len() {
@@ -136,11 +136,11 @@ impl Request {
     pub(crate) fn bulk(
         device: &Arc<CtxDeviceImpl>,
         endpoint: EndpointDescriptor,
-        package_len: usize,
+        data:Vec<u8>,
         timeout: Duration
     ) -> Result<Self> {
 
-        let mut s = Self::new(0, package_len)?;
+        let mut s = Self::new(0, data)?;
         let handle = device.get_handle()?.0;
         unsafe {
             let buf_ptr = s.buff.as_mut_ptr();
@@ -150,7 +150,7 @@ impl Request {
                 handle,
                 endpoint.to_lib() as _,
                 buf_ptr,
-                package_len as _,
+                s.buff.len() as _,
                 Self::empty_cb,
                 null_mut(),
                 timeout.as_millis() as _,
@@ -158,7 +158,31 @@ impl Request {
         }
         Ok(s)
     }
+    pub(crate) fn interrupt(
+        device: &Arc<CtxDeviceImpl>,
+        endpoint: EndpointDescriptor,
+        data:Vec<u8>,
+        timeout: Duration
+    ) -> Result<Self> {
 
+        let mut s = Self::new(0, data)?;
+        let handle = device.get_handle()?.0;
+        unsafe {
+            let buf_ptr = s.buff.as_mut_ptr();
+
+            libusb_fill_interrupt_transfer(
+                s.ptr.0,
+                handle,
+                endpoint.to_lib() as _,
+                buf_ptr,
+                s.buff.len() as _,
+                Self::empty_cb,
+                null_mut(),
+                timeout.as_millis() as _,
+            );
+        }
+        Ok(s)
+    }
 
     extern "system" fn empty_cb(_: *mut libusb_transfer) {}
 }

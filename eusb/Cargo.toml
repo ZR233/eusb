@@ -1,11 +1,11 @@
 [package]
 name = "eusb"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["zhour rui <zrufo747@outlook.com>"]
 description = "Rust library for accessing USB devices."
 license = "MIT"
-homepage = "https://gitee.com/zr233/eusb"
-repository = "https://gitee.com/zr233/eusb"
+homepage = "https://github.com/ZR233/eusb"
+repository = "https://github.com/ZR233/eusb"
 readme = "README.md"
 keywords = ["usb", "libusb", "hardware", "async"]
 edition = "2021"

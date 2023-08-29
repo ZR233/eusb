@@ -37,7 +37,13 @@ pub trait IInterface<R: IRequest>: Send {
     fn bulk_request(
         &self,
         endpoint: EndpointDescriptor,
-        package_len: usize,
+        data: Vec<u8>,
+        timeout: Duration)-> Result<R>;
+
+    fn interrupt_request(
+        &self,
+        endpoint: EndpointDescriptor,
+        data: Vec<u8>,
         timeout: Duration)-> Result<R>;
 }
 
@@ -47,6 +53,15 @@ pub(crate) trait CtxDevice<R: IRequest, I: IInterface<R>>: Send {
     fn vid(&self)->u16;
     fn serial_number(self: &Arc<Self>)-> ResultFuture<String>;
     fn speed(self: &Arc<Self>)->Result<Speed>;
+    fn bcd_usb(&self)->u16;
+    fn device_class(&self)-> DeviceClass;
+    fn device_subclass(&self)-> DeviceClass;
+    fn device_protocol(&self)-> DeviceClass;
+    fn max_packet_size_0(&self)->usize;
+    fn bcd_device(&self)->u16;
+    fn manufacturer(self: &Arc<Self>)-> Result<String>;
+    fn product(self: &Arc<Self>)-> Result<String>;
+
     fn control_request(self: &Arc<Self>,
         param:RequestParamControlTransfer,
         direction: EndpointDirection

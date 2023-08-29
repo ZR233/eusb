@@ -9,18 +9,50 @@ async fn main() {
     let devices = manager.device_list().await.unwrap();
     for device in devices {
         let mut msg = "".to_string();
+        let mut product = "".to_string();
+        let mut manufacturer = "".to_string();
 
 
+
+
+        match device.product(){
+            Ok(s) => {product=s}
+            Err(_) => {}
+        };
+
+        match device.manufacturer(){
+            Ok(s) => {manufacturer=s}
+            Err(_) => {}
+        };
         let sn = match device.serial_number().await {
             Ok(s) => { s }
             Err(_) => { "没有权限，无法获取部分信息".to_string() }
         };
+
+        let bcd_usb = device.bcd_usb_version();
+        let bcd_device = device.bcd_device_version();
         msg = format!(r"
 Device:
   pid: {}
   vid: {}
   sn: {}
-", device.pid(), device.vid(), sn);
+  bcd usb: {}.{}
+  bcd device: {}.{}
+  class: {:?}
+  subclass: {:?}
+  protocol: {:?}
+  manufacturer: {}
+  product: {}
+",
+                      device.pid(),
+                      device.vid(),
+                      sn,
+                      bcd_usb[1],bcd_usb[2],
+                      bcd_device[1],bcd_device[2],
+                      device.device_class(),
+                      device.device_subclass(),
+                      device.device_protocol(),
+                      manufacturer, product);
         let cfg_list = device.config_list().unwrap();
         for cfg in &cfg_list {
             msg += format!(r"
