@@ -1,3 +1,4 @@
+#[cfg(unix)]
 use std::os::fd::RawFd;
 use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::{Arc, Condvar, Mutex};
@@ -8,6 +9,7 @@ use super::device::CtxDeviceImpl;
 use super::interface::Interface;
 use super::ptr::Context;
 use crate::error::*;
+#[cfg(unix)]
 use crate::platform::ptr::DeviceHandle;
 use crate::platform::Request;
 
@@ -99,7 +101,7 @@ impl CtxManager<Request, Interface, CtxDeviceImpl> for Manager {
             Ok(list)
         })
     }
-
+    #[cfg(unix)]
     fn open_device_with_fd(&self, fd: RawFd) -> Result<CtxDeviceImpl> {
         unsafe {
             let mut handle= null_mut();
