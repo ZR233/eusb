@@ -1,6 +1,6 @@
 [package]
 name = "libusb-src"
-version = "1.26.2"
+version = "1.27.0+1.0.26"
 edition = "2021"
 authors = ["zhour rui <zrufo747@outlook.com>"]
 description = "FFI bindings for libusb. Can be easily cross compiled."
@@ -26,6 +26,9 @@ include = [
 ]
 
 build = "build.rs"
+
+[lib]
+
 
 [dependencies]
 libc = "0.2"
