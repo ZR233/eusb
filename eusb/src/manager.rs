@@ -1,35 +1,30 @@
 use std::sync::OnceLock;
-use crate::platform::{DeviceCtx, Platform, PlatformLibUsb};
-
-
-#[cfg(libusb)]
-type  PlatformImpl =  PlatformLibUsb;
-
+use crate::device::UsbDevice;
+use crate::platform::*;
+use crate::error::*;
 
 static  MANAGER: OnceLock<Manager> = OnceLock::new();
 
-struct Manager{
-    platform: PlatformImpl
+pub(crate) struct Manager{
+    platform: ManagerCtxImpl
 }
 impl Manager{
-    pub(crate) fn get()->&'static Self{
+    pub fn get()->&'static Self{
         MANAGER.get_or_init(||{
-            let platform = PlatformImpl::new();
+            let platform = ManagerCtxImpl::new();
             Self{platform}
         })
     }
-}
 
 
-#[cfg(test)]
-mod tests{
-    #[test]
-    fn it_works(){
-
-
-
+    pub async fn device_list(&self)->Result<Vec<UsbDevice>>{
+        self.platform.device_list().await
     }
 }
+
+
+
+
 
 
 

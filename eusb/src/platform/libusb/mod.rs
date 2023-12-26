@@ -1,2 +1,3 @@
 pub(crate) mod context;
-mod device;
+pub(crate) mod device;
+mod errors;
