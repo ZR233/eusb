@@ -35,6 +35,24 @@ pub enum Speed{
     Unknown, Low, Full, High, Super, SuperPlus
 }
 
+#[allow(non_snake_case)]
+#[derive(Default, Debug)]
+pub struct DeviceDescriptor{
+    pub bLength: u8,
+    pub bDescriptorType: u8,
+    pub bcdUSB: u16,
+    pub bDeviceClass: u8,
+    pub bDeviceSubClass: u8,
+    pub bDeviceProtocol: u8,
+    pub bMaxPacketSize0: u8,
+    pub idVendor: u16,
+    pub idProduct: u16,
+    pub bcdDevice: u16,
+    pub iManufacturer: u8,
+    pub iProduct: u8,
+    pub iSerialNumber: u8,
+    pub bNumConfigurations: u8,
+}
 pub struct EndpointDescriptor {
     pub num: u8,
     pub direction: Direction,

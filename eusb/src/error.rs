@@ -1,6 +1,6 @@
 use std::{result};
 
-pub type Result<T> = result::Result<T, Error>;
+pub type Result<T=()> = result::Result<T, Error>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

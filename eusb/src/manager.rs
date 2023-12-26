@@ -17,8 +17,8 @@ impl Manager{
     }
 
 
-    pub async fn device_list(&self)->Result<Vec<UsbDevice>>{
-        self.platform.device_list().await
+    pub  fn device_list(&self)->Result<Vec<UsbDevice>>{
+        self.platform.device_list()
     }
 }
 

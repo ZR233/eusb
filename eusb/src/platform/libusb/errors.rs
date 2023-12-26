@@ -1,5 +1,5 @@
 use std::ffi::c_int;
-use crate::error::*;
+pub(crate) use crate::error::*;
 use libusb_src::*;
 
 

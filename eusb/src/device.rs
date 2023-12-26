@@ -1,33 +1,42 @@
 use std::fmt::{Display, Formatter};
+use crate::define::DeviceDescriptor;
 use crate::error::*;
 use crate::manager::Manager;
-use crate::platform::DeviceCtxImpl;
+use crate::platform::{DeviceCtx, DeviceCtxImpl};
 
 
-pub struct UsbDevice{
-    ctx: DeviceCtxImpl
+pub struct UsbDevice {
+    ctx: DeviceCtxImpl,
 }
 
 
 impl Display for UsbDevice {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "USB device: ", )
+        let des = self.device_descriptor().unwrap();
+        write!(f, "USB device [0x{:04X}:0x{:04X}], bus: {}, address: {}",
+               des.idVendor, des.idProduct,
+               self.ctx.bus_number(), self.ctx.device_address())
     }
 }
 
-impl From<DeviceCtxImpl> for UsbDevice{
+impl From<DeviceCtxImpl> for UsbDevice {
     fn from(value: DeviceCtxImpl) -> Self {
-        Self{
+        Self {
             ctx: value
         }
     }
 }
 
-impl UsbDevice{
-    pub async fn list()->Result<Vec<UsbDevice>>{
+impl UsbDevice {
+    pub fn list() -> Result<Vec<UsbDevice>> {
         let manager = Manager::get();
-        manager.device_list().await
+        manager.device_list()
+    }
+    pub fn serial_number(&self) -> Result<String> {
+        self.ctx.serial_number()
     }
 
-
+    pub fn device_descriptor(&self) -> Result<DeviceDescriptor> {
+        self.ctx.device_descriptor()
+    }
 }

@@ -1,19 +1,21 @@
 use crate::error::*;
-use std::future::Future;
-use std::pin::Pin;
 use crate::device::UsbDevice;
 
 #[cfg(libusb)]
 pub(crate) mod libusb;
 #[cfg(libusb)]
 pub(crate)  use libusb::{context::ManagerCtxImpl, device::DeviceCtxImpl};
+use crate::define::DeviceDescriptor;
 
 
 pub(crate) trait DeviceCtx{
-    
+    fn device_descriptor(&self)->Result< DeviceDescriptor>;
+    fn serial_number(&self)->Result<String>;
+    fn bus_number(&self)->u8;
+    fn device_address(&self)->u8;
 }
 
 pub(crate) trait ManagerCtx {
     fn new()->Self;
-    fn device_list(&self)->Pin<Box<dyn Future<Output=Result<Vec<UsbDevice>>>>>;
+    fn device_list(&self)->Result<Vec<UsbDevice>>;
 }
