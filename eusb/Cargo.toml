@@ -17,6 +17,7 @@ thiserror = "1.0"
 futures = "0.3"
 log = "0.4"
 pin-project = "1.1"
+ctor="0.2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }

@@ -27,6 +27,7 @@ impl From<DeviceCtxImpl> for UsbDevice {
     }
 }
 
+#[allow(unused)]
 impl UsbDevice {
     pub fn list() -> Result<Vec<UsbDevice>> {
         let manager = Manager::get();

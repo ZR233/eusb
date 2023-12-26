@@ -37,7 +37,7 @@ impl DeviceCtxImpl {
         Ok(())
     }
 
-    fn use_handle<F, O>(&self, f: F)->Result<O>
+    fn use_handle<F, O>(&self, f: F) -> Result<O>
         where F: FnOnce(&DeviceHandle) -> Result<O> {
         self.open()?;
         let g = self.handle.lock().unwrap();
@@ -53,20 +53,20 @@ impl DeviceCtx for DeviceCtxImpl {
 
     fn serial_number(&self) -> Result<String> {
         let des = self.device_descriptor()?;
-        self.use_handle(move|h|{
-           h.get_string_descriptor_ascii(des.iSerialNumber)
+        self.use_handle(move |h| {
+            h.get_string_descriptor_ascii(des.iSerialNumber)
         })
     }
 
     fn bus_number(&self) -> u8 {
         unsafe {
-           libusb_get_bus_number(self.dev.0)
+            libusb_get_bus_number(self.dev.0)
         }
     }
 
     fn device_address(&self) -> u8 {
         unsafe {
-             libusb_get_device_address(self.dev.0)
+            libusb_get_device_address(self.dev.0)
         }
     }
 }
@@ -118,7 +118,6 @@ impl From<*mut libusb_device> for Device {
         Self(value)
     }
 }
-
 
 
 impl Drop for Device {

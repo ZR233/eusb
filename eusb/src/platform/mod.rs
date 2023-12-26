@@ -18,4 +18,5 @@ pub(crate) trait DeviceCtx{
 pub(crate) trait ManagerCtx {
     fn new()->Self;
     fn device_list(&self)->Result<Vec<UsbDevice>>;
+    fn close(&self);
 }

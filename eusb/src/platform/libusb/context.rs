@@ -1,7 +1,6 @@
-use std::future::Future;
-use std::pin::Pin;
 use std::ptr::{null_mut, slice_from_raw_parts};
 use std::sync::Arc;
+use log::debug;
 use crate::device::UsbDevice;
 use crate::error::*;
 use libusb_src::*;
@@ -16,22 +15,12 @@ unsafe impl Send for Context {}
 
 unsafe impl Sync for Context {}
 
-impl Drop for Context {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.0.is_null() {
-                libusb_exit(self.0);
-            }
-        }
-    }
-}
-
-
 impl Context {
     fn new() -> Self {
         unsafe {
             let mut ptr = null_mut();
             check_err(libusb_init(&mut ptr)).unwrap();
+            debug!("libusb_init");
             Self(ptr)
         }
     }
@@ -44,6 +33,15 @@ impl Context {
             let out: Vec<Device> = list.iter().copied().map(|o| o.into()).collect();
             libusb_free_device_list(devs_raw, 0);
             Ok(out)
+        }
+    }
+
+    fn exit(&self){
+        unsafe {
+            if !self.0.is_null() {
+                debug!("libusb_exit");
+                libusb_exit(self.0);
+            }
         }
     }
 }
@@ -70,6 +68,10 @@ impl ManagerCtx for ManagerCtxImpl {
             out.push(device.into());
         }
         Ok(out)
+    }
+
+    fn close(&self) {
+       self.ctx.exit();
     }
 }
 

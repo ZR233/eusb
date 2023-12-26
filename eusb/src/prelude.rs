@@ -14,7 +14,6 @@ mod tests{
             if let Ok(sn)= device.serial_number() {
                 println!("sn: {sn}");
             }
-
         }
     }
 }
