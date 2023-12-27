@@ -35,8 +35,27 @@ impl Transfer {
         std::mem::forget(buffer);
         libusb_fill_control_setup(buffer_ptr, request_type, request, value, index, length as _);
         libusb_fill_control_transfer(t.0, null_mut(), buffer_ptr, callback, null_mut(), timeout.as_millis() as _);
+        (*t.0).flags = LIBUSB_TRANSFER_FREE_BUFFER;
         t
     }
+
+    pub unsafe fn bulk_transfer(
+        endpoint: u8,
+        callback: libusb_transfer_cb_fn,
+        length: usize, timeout: Duration
+    )->Self{
+        let t = Self::new(0);
+        unsafe {
+            let mut buffer = vec![0; length];
+            let buffer_ptr = buffer.as_mut_ptr();
+            std::mem::forget(buffer);
+            libusb_fill_bulk_transfer(t.0, null_mut(), endpoint, buffer_ptr, length as _, callback, null_mut(), timeout.as_millis() as _);
+            (*t.0).flags = LIBUSB_TRANSFER_FREE_BUFFER;
+        }
+        t
+    }
+
+
     pub fn control_transfer_get_data(&self) -> &[u8] {
         unsafe {
             let p = libusb_control_transfer_get_data(self.0);
@@ -66,6 +85,12 @@ impl Transfer {
     pub fn actual_length(&self) -> usize {
         unsafe {
             (*self.0).actual_length as _
+        }
+    }
+    pub fn cancel(&self)->Result{
+        unsafe {
+            check_err(libusb_cancel_transfer(self.0))?;
+            Ok(())
         }
     }
 

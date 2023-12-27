@@ -1,6 +1,6 @@
 use std::fmt::{Display, Formatter};
-use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor};
-use crate::endpoint::EndpointIn;
+use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor, PipConfig};
+use crate::endpoint::EndpointPipIn;
 use crate::error::*;
 use crate::manager::Manager;
 use crate::platform::{DeviceCtx, DeviceCtxImpl};
@@ -51,22 +51,24 @@ impl UsbDevice {
         self.ctx.get_active_configuration()
     }
 
-    pub fn open_endpoint_in(&self, endpoint: u8) -> Result<EndpointIn> {
-        let inner = self.ctx.open_endpoint_in(endpoint)?;
+    pub fn bulk_transfer_pip_in(&self, endpoint: u8, pip_config: PipConfig) -> Result<EndpointPipIn> {
+        let inner = self.ctx.bulk_transfer_pip_in(endpoint, pip_config)?;
         Ok(inner.into())
     }
 
-    pub async fn control_transfer_in(&self,
-                                     control_transfer_request: ControlTransferRequest,
-                                     capacity: usize,
+    pub async fn control_transfer_in(
+        &self,
+        control_transfer_request: ControlTransferRequest,
+        capacity: usize,
     ) -> Result<Vec<u8>> {
         self.ctx.control_transfer_in(control_transfer_request, capacity).await
     }
 
 
-    pub async fn control_transfer_out(&self,
-                                      control_transfer_request: ControlTransferRequest,
-                                      data: &[u8],
+    pub async fn control_transfer_out(
+        &self,
+        control_transfer_request: ControlTransferRequest,
+        data: &[u8],
     ) -> Result<usize> {
         self.ctx.control_transfer_out(control_transfer_request, data).await
     }

@@ -1,5 +1,5 @@
 pub use crate::device::UsbDevice;
-pub use crate::endpoint::EndpointIn;
+pub use crate::endpoint::EndpointPipIn;
 pub use crate::define::*;
 
 #[cfg(test)]

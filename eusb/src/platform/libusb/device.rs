@@ -4,7 +4,7 @@ use std::ptr::{null, null_mut};
 use std::sync::{Arc, Mutex};
 use crate::platform::{DeviceCtx};
 use libusb_src::*;
-use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor, Direction, Speed};
+use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor, Direction, PipConfig, Speed};
 use crate::platform::libusb::{config_descriptor_convert, ToLib};
 use crate::platform::libusb::device_handle::DeviceHandle;
 use crate::platform::libusb::endpoint::EndpointInImpl;
@@ -126,10 +126,6 @@ impl DeviceCtx for DeviceCtxImpl {
         self.dev.get_active_config_descriptor(handle)
     }
 
-    fn open_endpoint_in(&self, endpoint: u8) -> Result<EndpointInImpl> {
-        self.open_endpoint(endpoint)?;
-        Ok(EndpointInImpl {})
-    }
 
     fn control_transfer_in(
         &self, control_transfer_request: ControlTransferRequest, capacity: usize) -> Pin<Box<dyn Future<Output=Result<Vec<u8>>>>> {
@@ -165,6 +161,12 @@ impl DeviceCtx for DeviceCtxImpl {
                                                control_transfer_request.timeout).await?;
             Ok(tran.actual_length())
         })
+    }
+
+    fn bulk_transfer_pip_in(&self, endpoint: u8, pip_config: PipConfig) -> Result<EndpointInImpl> {
+        let handle = open(self.dev.clone(), &self.opened)?;
+        self.open_endpoint(endpoint)?;
+        Ok(EndpointInImpl::new(&handle, endpoint, pip_config))
     }
 }
 

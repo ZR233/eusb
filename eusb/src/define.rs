@@ -156,5 +156,20 @@ pub struct ConfigDescriptor {
     pub configuration: String,
 }
 
+#[derive(Clone)]
+pub struct PipConfig{
+    pub pip_size: usize,
+    pub package_size: usize,
+    pub timeout: Duration,
+}
 
+impl Default for PipConfig {
+    fn default() -> Self {
+        Self{
+            pip_size: 4,
+            package_size:0,
+            timeout: Default::default(),
+        }
+    }
+}
 
