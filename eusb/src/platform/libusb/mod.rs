@@ -19,11 +19,11 @@ pub(crate) unsafe  fn  config_descriptor_convert(raw: *const libusb_config_descr
         (*raw).interface,
         alt_settings.capacity());
     for desc in interface_list {
-        let mut alts = Vec::with_capacity((*desc).num_altsetting as _);
+        let mut alts = Vec::with_capacity(desc.num_altsetting as _);
 
         let alts_ptr = &*slice_from_raw_parts(
-            (*desc).altsetting,
-            (*desc).num_altsetting as _
+            desc.altsetting,
+            desc.num_altsetting as _
         );
         for interface in alts_ptr {
             let mut endpoints = Vec::with_capacity(interface.bNumEndpoints as _);

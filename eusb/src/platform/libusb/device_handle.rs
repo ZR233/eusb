@@ -1,10 +1,15 @@
+use std::collections::HashSet;
 use std::ffi::CStr;
+use log::debug;
 use libusb_src::*;
 use crate::manager::Manager;
 use crate::platform::libusb::device::Device;
 use super::errors::*;
 
-pub(crate) struct DeviceHandle(*mut libusb_device_handle);
+pub(crate) struct DeviceHandle{
+    ptr: *mut libusb_device_handle,
+    claimed: HashSet<u8>,
+}
 
 unsafe impl Send for DeviceHandle{}
 unsafe impl Sync for DeviceHandle{}
@@ -12,15 +17,19 @@ unsafe impl Sync for DeviceHandle{}
 impl From<*mut libusb_device_handle> for DeviceHandle{
     fn from(value: *mut libusb_device_handle) -> Self {
         Manager::get().platform.open_device();
-        Self(value)
+        Self{ptr: value, claimed: HashSet::new()}
     }
 }
 impl Drop for DeviceHandle{
     fn drop(&mut self) {
         unsafe {
-            if !self.0.is_null() {
+            if !self.ptr.is_null() {
                 Manager::get().platform.close_device();
-                libusb_close(self.0);
+                for one in &self.claimed{
+                    let _ = self.release_interface(*one);
+                }
+                debug!("device close");
+                libusb_close(self.ptr);
             }
         }
     }
@@ -28,35 +37,38 @@ impl Drop for DeviceHandle{
 
 impl DeviceHandle{
 
-    pub fn claim_interface(&self, interface_number: u8)->Result{
+    pub fn claim_interface(&mut self, interface_number: u8)->Result{
         unsafe {
-            check_err( libusb_claim_interface(self.0, interface_number as _))?;
+            debug!("claim interface [{:3}]", interface_number);
+            check_err( libusb_claim_interface(self.ptr, interface_number as _))?;
+            self.claimed.insert(interface_number);
             Ok(())
         }
     }
     pub fn release_interface(&self, interface_number: u8)->Result{
         unsafe {
-            check_err( libusb_release_interface(self.0, interface_number as _))?;
+            check_err( libusb_release_interface(self.ptr, interface_number as _))?;
+            debug!("release interface [{:3}]", interface_number);
             Ok(())
         }
     }
     pub fn get_configuration(&self)->Result<u8>{
         unsafe {
             let mut c = 0;
-            check_err(libusb_get_configuration(self.0, &mut c))?;
+            check_err(libusb_get_configuration(self.ptr, &mut c))?;
             Ok(c as _)
         }
     }
 
     pub fn set_configuration(&self, config_value: u8) ->Result{
         unsafe {
-            check_err(libusb_set_configuration(self.0, config_value as _))?;
+            check_err(libusb_set_configuration(self.ptr, config_value as _))?;
             Ok(())
         }
     }
-    pub fn clear_halt(&self, endpoint: usize)->Result{
+    pub fn clear_halt(&self, endpoint: u8)->Result{
         unsafe {
-            check_err(libusb_clear_halt( self .0,endpoint as _))?;
+            check_err(libusb_clear_halt( self.ptr,endpoint as _))?;
             Ok(())
         }
     }
@@ -64,7 +76,7 @@ impl DeviceHandle{
     pub fn get_string_descriptor_ascii(&self, index: u8)->Result<String>{
         unsafe {
             let mut buff = [0u8;1024];
-            let _ = check_err( libusb_get_string_descriptor_ascii(self.0, index, buff.as_mut_ptr(), 1024))?;
+            let _ = check_err( libusb_get_string_descriptor_ascii(self.ptr, index, buff.as_mut_ptr(), 1024))?;
             let c = CStr::from_ptr(buff.as_ptr() as _);
             let out =c.to_string_lossy().to_string();
             Ok(out)
@@ -73,7 +85,7 @@ impl DeviceHandle{
 
     pub fn get_device(&self)->Device{
         unsafe {
-            let mut dev = libusb_get_device(self.0);
+            let mut dev = libusb_get_device(self.ptr);
             dev = libusb_ref_device(dev);
             dev
         }.into()

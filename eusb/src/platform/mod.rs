@@ -4,13 +4,13 @@ use crate::device::UsbDevice;
 #[cfg(libusb)]
 pub(crate) mod libusb;
 #[cfg(libusb)]
-pub(crate)  use libusb::{ device::DeviceCtxImpl, manager::ManagerCtxImpl};
+pub(crate)  use libusb::{ device::DeviceCtxImpl, manager::ManagerCtxImpl, endpoint::EndpointInImpl};
 use crate::define::{ConfigDescriptor, DeviceDescriptor};
 
-pub(crate) trait EndpointIn{
+pub(crate) trait EndpointInInner{
     
 }
-pub(crate) trait EndpointOut{
+pub(crate) trait EndpointOutInner{
     
 }
 
@@ -20,6 +20,7 @@ pub(crate) trait DeviceCtx{
     fn bus_number(&self)->u8;
     fn device_address(&self)->u8;
     fn get_active_configuration(&self)->Result<ConfigDescriptor>;
+    fn open_endpoint_in(&self, endpoint: u8)->Result<EndpointInImpl>;
 }
 
 pub(crate) trait ManagerCtx {

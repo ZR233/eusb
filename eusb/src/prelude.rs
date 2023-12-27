@@ -1,4 +1,5 @@
 pub use crate::device::UsbDevice;
+pub use crate::endpoint::EndpointIn;
 
 
 #[cfg(test)]
@@ -40,5 +41,9 @@ mod tests {
         let cfg = device.get_active_configuration().unwrap();
 
         info!("cfg: {}", cfg.configuration);
+
+        let ep = device.open_endpoint_in(1).unwrap();
+
+        info!("ep 0 ok");
     }
 }

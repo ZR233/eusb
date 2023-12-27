@@ -1,12 +1,9 @@
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use log::{debug};
-use libusb_src::libusb_open_device_with_vid_pid;
-use crate::define::DeviceClass::PerInterface;
 use crate::device::UsbDevice;
 use crate::platform::libusb::context::Context;
 use crate::platform::{DeviceCtxImpl, ManagerCtx};
-use crate::platform::libusb::device::Device;
 use super::errors::*;
 
 pub(crate) struct ManagerCtxImpl {

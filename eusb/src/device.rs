@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
 use crate::define::{ConfigDescriptor, DeviceDescriptor};
+use crate::endpoint::EndpointIn;
 use crate::error::*;
 use crate::manager::Manager;
 use crate::platform::{DeviceCtx, DeviceCtxImpl};
@@ -48,5 +49,10 @@ impl UsbDevice {
 
     pub fn get_active_configuration(&self)->Result<ConfigDescriptor>{
         self.ctx.get_active_configuration()
+    }
+
+    pub fn open_endpoint_in(&self, endpoint: u8)->Result<EndpointIn>{
+        let inner = self.ctx.open_endpoint_in(endpoint)?;
+        Ok(inner.into())
     }
 }

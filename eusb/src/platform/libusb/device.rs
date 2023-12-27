@@ -1,22 +1,35 @@
 use std::ptr::{null, null_mut};
 use std::sync::{Arc, Mutex};
-use crate::platform::DeviceCtx;
+use crate::platform::{DeviceCtx};
 use libusb_src::*;
 use crate::define::{ConfigDescriptor, DeviceDescriptor, Speed};
 use crate::platform::libusb::config_descriptor_convert;
 use crate::platform::libusb::device_handle::DeviceHandle;
+use crate::platform::libusb::endpoint::EndpointInImpl;
 use crate::platform::libusb::errors::*;
 
 pub(crate) struct DeviceCtxImpl {
     dev: Arc<Device>,
-    handle: Arc<Mutex<Option<DeviceHandle>>>,
+    opened: Arc<Mutex<Option<OpenedDevice>>>,
+}
+
+struct OpenedDevice{
+    handle: DeviceHandle,
+}
+
+impl OpenedDevice {
+    fn new(handle: DeviceHandle)->Self{
+        Self {
+            handle,
+        }
+    }
 }
 
 impl From<Device> for DeviceCtxImpl {
     fn from(value: Device) -> Self {
         Self {
             dev: Arc::new(value),
-            handle: Arc::new(Mutex::new(None)),
+            opened: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -26,30 +39,30 @@ impl From<DeviceHandle> for DeviceCtxImpl {
         let dev = value.get_device();
         Self{
             dev: Arc::new(dev),
-            handle: Arc::new(Mutex::new(Some(value))),
+            opened: Arc::new(Mutex::new(Some(OpenedDevice::new(value))))
         }
     }
 }
 
 impl DeviceCtxImpl {
     fn open(&self) -> Result {
-        let g = self.handle.lock().unwrap();
+        let g = self.opened.lock().unwrap();
         if g.is_some() {
             return Ok(());
         }
         drop(g);
         let h = self.dev.open()?;
-        let mut g = self.handle.lock().unwrap();
-        *g = Some(h);
+        let mut g = self.opened.lock().unwrap();
+        *g = Some(OpenedDevice::new(h));
 
         Ok(())
     }
 
-    fn use_handle<F, O>(&self, f: F) -> Result<O>
-        where F: FnOnce(&DeviceHandle) -> Result<O> {
+    fn use_opened<F, O>(&self, f: F) -> Result<O>
+        where F: FnOnce(&mut OpenedDevice) -> Result<O> {
         self.open()?;
-        let g = self.handle.lock().unwrap();
-        let h = g.as_ref().unwrap();
+        let mut g = self.opened.lock().unwrap();
+        let h = g.as_mut().unwrap();
         f(h)
     }
 
@@ -65,9 +78,8 @@ impl DeviceCtxImpl {
                 }
             }
         }
-        self.use_handle(|h|{
-            h.claim_interface(interface_num)?;
-
+        self.use_opened(|h|{
+            h.handle.claim_interface(interface_num)?;
             Ok(())
         })?;
 
@@ -83,8 +95,8 @@ impl DeviceCtx for DeviceCtxImpl {
 
     fn serial_number(&self) -> Result<String> {
         let des = self.device_descriptor()?;
-        self.use_handle(move |h| {
-            h.get_string_descriptor_ascii(des.iSerialNumber)
+        self.use_opened(move |h| {
+            h.handle.get_string_descriptor_ascii(des.iSerialNumber)
         })
     }
 
@@ -101,8 +113,14 @@ impl DeviceCtx for DeviceCtxImpl {
     }
 
     fn get_active_configuration(&self) -> Result<ConfigDescriptor> {
-        let g = self.handle.lock().unwrap();
-       self.dev.get_active_config_descriptor(g.as_ref())
+        let g = self.opened.lock().unwrap();
+        let handle = g.as_ref().map(|o| &o.handle);
+        self.dev.get_active_config_descriptor(handle)
+    }
+
+    fn open_endpoint_in(&self, endpoint: u8) -> Result<EndpointInImpl> {
+        self.open_endpoint(endpoint)?;
+        Ok(EndpointInImpl{})
     }
 }
 
