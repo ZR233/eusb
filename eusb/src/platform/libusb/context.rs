@@ -16,7 +16,7 @@ unsafe impl Send for Context {}
 unsafe impl Sync for Context {}
 
 impl Context {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         unsafe {
             let mut ptr = null_mut();
             check_err(libusb_init(&mut ptr)).unwrap();
@@ -25,7 +25,7 @@ impl Context {
         }
     }
 
-    fn device_list(&self) -> Result<Vec<Device>> {
+    pub(crate) fn device_list(&self) -> Result<Vec<Device>> {
         unsafe {
             let mut devs_raw: *const *mut libusb_device = null_mut();
             let count = check_err(libusb_get_device_list(self.0, &mut devs_raw) as _)? as usize;
@@ -35,8 +35,14 @@ impl Context {
             Ok(out)
         }
     }
+    pub(crate) fn handle_events(&self)->Result{
+        unsafe {
+            check_err(libusb_handle_events(self.0))?;
+        }
+        Ok(())
+    }
 
-    fn exit(&self){
+    pub(crate) fn exit(&self){
         unsafe {
             if !self.0.is_null() {
                 debug!("libusb_exit");
@@ -47,31 +53,5 @@ impl Context {
 }
 
 
-pub(crate) struct ManagerCtxImpl {
-    ctx: Arc<Context>,
-}
 
-
-impl ManagerCtx for ManagerCtxImpl {
-    fn new() -> Self {
-        Self {
-            ctx: Arc::new(Context::new())
-        }
-    }
-
-    fn device_list(&self) -> Result<Vec<UsbDevice>> {
-        let ctx = self.ctx.clone();
-        let mut d = ctx.device_list()?;
-        let mut out = Vec::with_capacity(d.len());
-        while let Some(one) = d.pop() {
-            let device: DeviceCtxImpl = one.into();
-            out.push(device.into());
-        }
-        Ok(out)
-    }
-
-    fn close(&self) {
-       self.ctx.exit();
-    }
-}
 

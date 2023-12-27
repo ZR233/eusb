@@ -4,7 +4,7 @@ use crate::device::UsbDevice;
 #[cfg(libusb)]
 pub(crate) mod libusb;
 #[cfg(libusb)]
-pub(crate)  use libusb::{context::ManagerCtxImpl, device::DeviceCtxImpl};
+pub(crate)  use libusb::{ device::DeviceCtxImpl, manager::ManagerCtxImpl};
 use crate::define::DeviceDescriptor;
 
 

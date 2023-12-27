@@ -7,7 +7,7 @@ use crate::error::*;
 static  MANAGER: OnceLock<Manager> = OnceLock::new();
 
 pub(crate) struct Manager{
-    platform: ManagerCtxImpl
+    pub(crate) platform: ManagerCtxImpl
 }
 
 impl Manager{

@@ -27,13 +27,10 @@ impl DeviceCtxImpl {
             return Ok(());
         }
         drop(g);
-        unsafe {
-            let mut ptr = null_mut();
-            check_err(libusb_open(self.dev.0, &mut ptr))?;
-            let h = DeviceHandle::from(ptr);
-            let mut g = self.handle.lock().unwrap();
-            *g = Some(h);
-        }
+        let h = self.dev.open()?;
+        let mut g = self.handle.lock().unwrap();
+        *g = Some(h);
+
         Ok(())
     }
 
@@ -79,6 +76,16 @@ unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
 
 impl Device {
+    pub fn open(&self)->Result< DeviceHandle>{
+       unsafe {
+           let mut ptr = null_mut();
+           check_err(libusb_open(self.0, &mut ptr))?;
+           let h = DeviceHandle::from(ptr);
+           Ok(h)
+       }
+    }
+
+
     pub fn get_max_packet_size(&self, endpoint: usize) -> Result<usize> {
         unsafe {
             let r = check_err(libusb_get_max_packet_size(self.0, endpoint as _))?;
