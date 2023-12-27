@@ -28,7 +28,7 @@ fn init_all() {
 }
 
 #[dtor]
-unsafe fn shutdown() {
+fn shutdown() {
     Manager::get().platform.close();
 }
 
