@@ -166,3 +166,43 @@ pub(crate) fn class_from_lib(class: u8)->DeviceClass{
         _ => panic!("Unknown class: {}", class)
     }
 }
+
+
+
+pub trait ToLib: Sized {
+    fn to_lib(self) -> u32;
+}
+
+impl ToLib for Direction {
+    fn to_lib(self) -> u32 {
+        (match self {
+            Direction::In { .. } => LIBUSB_ENDPOINT_IN,
+            Direction::Out { .. } => LIBUSB_ENDPOINT_OUT,
+        }) as u32
+    }
+}
+
+impl ToLib for UsbControlTransferType {
+    fn to_lib(self) -> u32 {
+        let t: u8 = match self {
+            UsbControlTransferType::Standard => LIBUSB_REQUEST_TYPE_STANDARD,
+            UsbControlTransferType::Class => LIBUSB_REQUEST_TYPE_CLASS,
+            UsbControlTransferType::Vendor => LIBUSB_REQUEST_TYPE_VENDOR,
+            UsbControlTransferType::Reserved => LIBUSB_REQUEST_TYPE_RESERVED,
+        };
+        t as _
+    }
+}
+
+impl ToLib for UsbControlRecipient {
+    fn to_lib(self) -> u32 {
+        let t: u8 = match self {
+            UsbControlRecipient::Device => LIBUSB_RECIPIENT_DEVICE,
+            UsbControlRecipient::Endpoint => LIBUSB_RECIPIENT_ENDPOINT,
+            UsbControlRecipient::Other => LIBUSB_RECIPIENT_OTHER,
+            UsbControlRecipient::DefaultInterface
+            | UsbControlRecipient::SpecifiedInterface => LIBUSB_RECIPIENT_INTERFACE,
+        };
+        t as _
+    }
+}

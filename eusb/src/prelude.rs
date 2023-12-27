@@ -1,10 +1,12 @@
 pub use crate::device::UsbDevice;
 pub use crate::endpoint::EndpointIn;
-
+pub use crate::define::*;
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use log::*;
+    use tokio::time::Instant;
     use super::*;
     use crate::utils::test::init;
 
@@ -42,8 +44,17 @@ mod tests {
 
         info!("cfg: {}", cfg.configuration);
 
-        let ep = device.open_endpoint_in(1).unwrap();
+        let start = Instant::now();
 
-        info!("ep 0 ok");
+        let data = device.control_transfer_in(
+            UsbControlRecipient::Device,
+            UsbControlTransferType::Vendor,
+            15,
+            0,0,Duration::default(), 30
+        ).await.unwrap();
+        let duration = start.elapsed();
+        let version = String::from_utf8(data).unwrap();
+
+        println!("version: {} cost: {:?}", version, duration);
     }
 }

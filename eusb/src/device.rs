@@ -1,5 +1,6 @@
 use std::fmt::{Display, Formatter};
-use crate::define::{ConfigDescriptor, DeviceDescriptor};
+use std::time::Duration;
+use crate::define::{ConfigDescriptor, DeviceDescriptor, UsbControlRecipient, UsbControlTransferType};
 use crate::endpoint::EndpointIn;
 use crate::error::*;
 use crate::manager::Manager;
@@ -54,5 +55,30 @@ impl UsbDevice {
     pub fn open_endpoint_in(&self, endpoint: u8)->Result<EndpointIn>{
         let inner = self.ctx.open_endpoint_in(endpoint)?;
         Ok(inner.into())
+    }
+
+    pub async fn control_transfer_in(&self,
+                           recipient: UsbControlRecipient,
+                           transfer_type: UsbControlTransferType,
+                           request: u8,
+                           value: u16,
+                           index: u16,
+                           timeout: Duration,
+                           capacity: usize,
+    )->Result<Vec<u8>>{
+        self.ctx.control_transfer_in(recipient, transfer_type, request, value, index, timeout, capacity).await
+    }
+
+
+    pub async fn control_transfer_out(&self,
+                                     recipient: UsbControlRecipient,
+                                     transfer_type: UsbControlTransferType,
+                                     request: u8,
+                                     value: u16,
+                                     index: u16,
+                                     timeout: Duration,
+                                     data: &[u8],
+    )->Result<usize>{
+        self.ctx.control_transfer_out(recipient, transfer_type, request, value, index, timeout,data).await
     }
 }
