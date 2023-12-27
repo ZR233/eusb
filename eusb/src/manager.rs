@@ -17,6 +17,9 @@ impl Manager{
     pub  fn device_list(&self)->Result<Vec<UsbDevice>>{
         self.platform.device_list()
     }
+    pub fn open_device_with_vid_pid(&self, vid: u16, pid: u16)->Result<UsbDevice>{
+        self.platform.open_device_with_vid_pid(vid, pid)
+    }
 }
 
 #[ctor]

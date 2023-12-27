@@ -7,6 +7,7 @@ use libusb_src::*;
 use crate::platform::libusb::device::Device;
 use crate::platform::libusb::errors::*;
 use crate::platform::{DeviceCtxImpl, ManagerCtx};
+use crate::platform::libusb::device_handle::DeviceHandle;
 
 
 pub(crate) struct Context(*mut libusb_context);
@@ -35,12 +36,22 @@ impl Context {
             Ok(out)
         }
     }
-    pub(crate) fn handle_events(&self)->Result{
+    pub(crate) fn handle_events(&self, )->Result{
         unsafe {
             check_err(libusb_handle_events(self.0))?;
         }
         Ok(())
     }
+    pub(crate) fn open_device_with_vid_pid(&self, vid: u16, pid: u16 )->Result<DeviceHandle>{
+        unsafe {
+            let h = libusb_open_device_with_vid_pid(self.0, vid, pid);
+            if h.is_null() {
+                return Err(Error::NotFound);
+            }
+            Ok(DeviceHandle::from(h))
+        }
+    }
+
 
     pub(crate) fn exit(&self){
         unsafe {

@@ -1,6 +1,7 @@
 use std::ffi::CStr;
 use libusb_src::*;
 use crate::manager::Manager;
+use crate::platform::libusb::device::Device;
 use super::errors::*;
 
 pub(crate) struct DeviceHandle(*mut libusb_device_handle);
@@ -26,30 +27,30 @@ impl Drop for DeviceHandle{
 }
 
 impl DeviceHandle{
-    
-    pub fn claim_interface(&self, interface_number: usize)->Result{
+
+    pub fn claim_interface(&self, interface_number: u8)->Result{
         unsafe {
             check_err( libusb_claim_interface(self.0, interface_number as _))?;
             Ok(())
         }
     }
-    pub fn release_interface(&self, interface_number: usize)->Result{
+    pub fn release_interface(&self, interface_number: u8)->Result{
         unsafe {
             check_err( libusb_release_interface(self.0, interface_number as _))?;
             Ok(())
         }
     }
-    pub fn get_configuration(&self)->Result<i32>{
+    pub fn get_configuration(&self)->Result<u8>{
         unsafe {
             let mut c = 0;
             check_err(libusb_get_configuration(self.0, &mut c))?;
-           Ok(c as _)
+            Ok(c as _)
         }
     }
 
-    pub fn set_configuration(&self, config: i32)->Result{
+    pub fn set_configuration(&self, config_value: u8) ->Result{
         unsafe {
-            check_err(libusb_set_configuration(self.0, config as _))?;
+            check_err(libusb_set_configuration(self.0, config_value as _))?;
             Ok(())
         }
     }
@@ -68,6 +69,14 @@ impl DeviceHandle{
             let out =c.to_string_lossy().to_string();
             Ok(out)
         }
+    }
+
+    pub fn get_device(&self)->Device{
+        unsafe {
+            let mut dev = libusb_get_device(self.0);
+            dev = libusb_ref_device(dev);
+            dev
+        }.into()
     }
 }
 

@@ -1,9 +1,13 @@
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use log::{debug};
+use libusb_src::libusb_open_device_with_vid_pid;
+use crate::define::DeviceClass::PerInterface;
 use crate::device::UsbDevice;
 use crate::platform::libusb::context::Context;
 use crate::platform::{DeviceCtxImpl, ManagerCtx};
+use crate::platform::libusb::device::Device;
+use super::errors::*;
 
 pub(crate) struct ManagerCtxImpl {
     ctx: Arc<Context>,
@@ -31,7 +35,7 @@ impl ManagerCtx for ManagerCtxImpl {
         }
     }
 
-    fn device_list(&self) -> crate::error::Result<Vec<UsbDevice>> {
+    fn device_list(&self) -> Result<Vec<UsbDevice>> {
         let ctx = self.ctx.clone();
         let mut d = ctx.device_list()?;
         let mut out = Vec::with_capacity(d.len());
@@ -40,6 +44,12 @@ impl ManagerCtx for ManagerCtxImpl {
             out.push(device.into());
         }
         Ok(out)
+    }
+
+    fn open_device_with_vid_pid(&self, vid: u16, pid: u16) -> Result<UsbDevice> {
+        let handle = self.ctx.open_device_with_vid_pid(vid, pid)?;
+        let dev = DeviceCtxImpl::from(handle);
+        Ok(dev.into())
     }
 
 

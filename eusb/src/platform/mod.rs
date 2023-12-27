@@ -7,6 +7,12 @@ pub(crate) mod libusb;
 pub(crate)  use libusb::{ device::DeviceCtxImpl, manager::ManagerCtxImpl};
 use crate::define::{ConfigDescriptor, DeviceDescriptor};
 
+pub(crate) trait EndpointIn{
+    
+}
+pub(crate) trait EndpointOut{
+    
+}
 
 pub(crate) trait DeviceCtx{
     fn device_descriptor(&self)->Result< DeviceDescriptor>;
@@ -19,5 +25,6 @@ pub(crate) trait DeviceCtx{
 pub(crate) trait ManagerCtx {
     fn new()->Self;
     fn device_list(&self)->Result<Vec<UsbDevice>>;
+    fn open_device_with_vid_pid(&self, vid: u16, pid: u16)->Result<UsbDevice>;
     fn close(&self);
 }

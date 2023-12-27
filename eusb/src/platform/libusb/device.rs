@@ -21,6 +21,16 @@ impl From<Device> for DeviceCtxImpl {
     }
 }
 
+impl From<DeviceHandle> for DeviceCtxImpl {
+    fn from(value: DeviceHandle) -> Self {
+        let dev = value.get_device();
+        Self{
+            dev: Arc::new(dev),
+            handle: Arc::new(Mutex::new(Some(value))),
+        }
+    }
+}
+
 impl DeviceCtxImpl {
     fn open(&self) -> Result {
         let g = self.handle.lock().unwrap();
@@ -41,6 +51,28 @@ impl DeviceCtxImpl {
         let g = self.handle.lock().unwrap();
         let h = g.as_ref().unwrap();
         f(h)
+    }
+
+    fn open_endpoint(&self, endpoint: u8)->Result{
+        let cfg = self.dev.get_active_config_descriptor(None)?;
+        let mut interface_num = 0;
+        for alt in cfg.interfaces{
+            for interface in alt.alt_settings{
+                for ep in interface.endpoints{
+                    if ep.num == endpoint{
+                        interface_num = interface.num;
+                    }
+                }
+            }
+        }
+        self.use_handle(|h|{
+            h.claim_interface(interface_num)?;
+
+            Ok(())
+        })?;
+
+
+        Ok(())
     }
 }
 

@@ -10,7 +10,7 @@ mod errors;
 mod device_handle;
 pub(crate)mod manager;
 mod transfer;
-
+pub(crate) mod endpoint;
 
 
 pub(crate) unsafe  fn  config_descriptor_convert(raw: *const libusb_config_descriptor, handle: Option<&DeviceHandle>, speed: Speed)->ConfigDescriptor{

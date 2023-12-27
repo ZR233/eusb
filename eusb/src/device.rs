@@ -33,6 +33,11 @@ impl UsbDevice {
         let manager = Manager::get();
         manager.device_list()
     }
+    pub fn open_with_vid_pid(vid: u16, pid: u16)->Result<UsbDevice>{
+        let manager = Manager::get();
+        manager.open_device_with_vid_pid(vid, pid)
+    }
+
     pub fn serial_number(&self) -> Result<String> {
         self.ctx.serial_number()
     }
