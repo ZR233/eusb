@@ -1,3 +1,7 @@
+#![allow(unused)]
+
+use std::time::Duration;
+
 pub enum UsbControlRecipient {
     Device,
     SpecifiedInterface,
@@ -11,6 +15,28 @@ pub enum UsbControlTransferType {
     Class,
     Vendor,
     Reserved
+}
+
+pub struct ControlTransferRequest{
+    pub recipient: UsbControlRecipient,
+    pub transfer_type: UsbControlTransferType,
+    pub request: u8,
+    pub value: u16,
+    pub index: u16,
+    pub timeout: Duration,
+}
+
+impl Default for ControlTransferRequest {
+    fn default() -> Self {
+        Self{
+            recipient: UsbControlRecipient::Device,
+            transfer_type: UsbControlTransferType::Standard,
+            request: 0,
+            value: 0,
+            index: 0,
+            timeout: Default::default(),
+        }
+    }
 }
 
 

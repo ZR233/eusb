@@ -129,10 +129,8 @@ extern "system"  fn sync_cb(transfer: *mut libusb_transfer) {
             g.as_ref().cloned()
         };
         if let Some(w)= wake{
-            debug!("wake");
             w.wake();
         }
-        debug!("ok");
     }
 }
 
@@ -162,14 +160,12 @@ impl Future for SyncTransfer {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 
         if self.inner.is_ok.load(Ordering::SeqCst) {
-            debug!("ready");
             Poll::Ready(())
         } else {
             {
                 let mut g = self.inner.waker.lock().unwrap();
                 *g = Some(cx.waker().clone());
             }
-            debug!("pending");
             Poll::Pending
         }
     }

@@ -1,6 +1,5 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::time::Duration;
 use crate::error::*;
 use crate::device::UsbDevice;
 use crate::define::*;
@@ -25,22 +24,12 @@ pub(crate) trait DeviceCtx {
     fn get_active_configuration(&self) -> Result<ConfigDescriptor>;
     fn open_endpoint_in(&self, endpoint: u8) -> Result<EndpointInImpl>;
     fn control_transfer_in(&self,
-                           recipient: UsbControlRecipient,
-                           transfer_type: UsbControlTransferType,
-                           request: u8,
-                           value: u16,
-                           index: u16,
-                           timeout: Duration,
+                           control_transfer_request: ControlTransferRequest,
                            capacity: usize,
     ) -> Pin<Box<dyn Future<Output=Result<Vec<u8>>>>>;
     fn control_transfer_out(&self,
-                           recipient: UsbControlRecipient,
-                           transfer_type: UsbControlTransferType,
-                           request: u8,
-                           value: u16,
-                           index: u16,
-                           timeout: Duration,
-                           data: &[u8],
+                            control_transfer_request: ControlTransferRequest,
+                            data: &[u8],
     ) -> Pin<Box<dyn Future<Output=Result<usize>>>>;
 }
 

@@ -4,7 +4,6 @@ pub use crate::define::*;
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use log::*;
     use tokio::time::Instant;
     use super::*;
@@ -47,14 +46,19 @@ mod tests {
         let start = Instant::now();
 
         let data = device.control_transfer_in(
-            UsbControlRecipient::Device,
-            UsbControlTransferType::Vendor,
-            15,
-            0,0,Duration::default(), 30
+            ControlTransferRequest{
+                recipient: UsbControlRecipient::Device,
+                transfer_type: UsbControlTransferType::Vendor,
+                request: 15,
+                ..Default::default()
+            }
+            ,30
         ).await.unwrap();
+
+
         let duration = start.elapsed();
         let version = String::from_utf8(data).unwrap();
 
-        println!("version: {} cost: {:?}", version, duration);
+        info!("version: {} cost: {:?}", version, duration);
     }
 }

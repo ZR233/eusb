@@ -1,6 +1,5 @@
 use std::fmt::{Display, Formatter};
-use std::time::Duration;
-use crate::define::{ConfigDescriptor, DeviceDescriptor, UsbControlRecipient, UsbControlTransferType};
+use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor};
 use crate::endpoint::EndpointIn;
 use crate::error::*;
 use crate::manager::Manager;
@@ -35,7 +34,7 @@ impl UsbDevice {
         let manager = Manager::get();
         manager.device_list()
     }
-    pub fn open_with_vid_pid(vid: u16, pid: u16)->Result<UsbDevice>{
+    pub fn open_with_vid_pid(vid: u16, pid: u16) -> Result<UsbDevice> {
         let manager = Manager::get();
         manager.open_device_with_vid_pid(vid, pid)
     }
@@ -48,37 +47,27 @@ impl UsbDevice {
         self.ctx.device_descriptor()
     }
 
-    pub fn get_active_configuration(&self)->Result<ConfigDescriptor>{
+    pub fn get_active_configuration(&self) -> Result<ConfigDescriptor> {
         self.ctx.get_active_configuration()
     }
 
-    pub fn open_endpoint_in(&self, endpoint: u8)->Result<EndpointIn>{
+    pub fn open_endpoint_in(&self, endpoint: u8) -> Result<EndpointIn> {
         let inner = self.ctx.open_endpoint_in(endpoint)?;
         Ok(inner.into())
     }
 
     pub async fn control_transfer_in(&self,
-                           recipient: UsbControlRecipient,
-                           transfer_type: UsbControlTransferType,
-                           request: u8,
-                           value: u16,
-                           index: u16,
-                           timeout: Duration,
-                           capacity: usize,
-    )->Result<Vec<u8>>{
-        self.ctx.control_transfer_in(recipient, transfer_type, request, value, index, timeout, capacity).await
+                                     control_transfer_request: ControlTransferRequest,
+                                     capacity: usize,
+    ) -> Result<Vec<u8>> {
+        self.ctx.control_transfer_in(control_transfer_request, capacity).await
     }
 
 
     pub async fn control_transfer_out(&self,
-                                     recipient: UsbControlRecipient,
-                                     transfer_type: UsbControlTransferType,
-                                     request: u8,
-                                     value: u16,
-                                     index: u16,
-                                     timeout: Duration,
-                                     data: &[u8],
-    )->Result<usize>{
-        self.ctx.control_transfer_out(recipient, transfer_type, request, value, index, timeout,data).await
+                                      control_transfer_request: ControlTransferRequest,
+                                      data: &[u8],
+    ) -> Result<usize> {
+        self.ctx.control_transfer_out(control_transfer_request, data).await
     }
 }

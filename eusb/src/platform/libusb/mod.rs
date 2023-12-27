@@ -103,7 +103,6 @@ pub(crate) unsafe  fn  config_descriptor_convert(raw: *const libusb_config_descr
         })
 
     }
-    let mut max_power = 0;
     let p =  match speed {
         Speed::Unknown => {0}
         Speed::Low => {0}
@@ -112,7 +111,7 @@ pub(crate) unsafe  fn  config_descriptor_convert(raw: *const libusb_config_descr
         Speed::Super => {2}
         Speed::SuperPlus => {8}
     } as usize;
-    max_power = p * ((*raw).bMaxPower as usize);
+    let max_power = p * ((*raw).bMaxPower as usize);
     let extra = get_extra((*raw).extra, (*raw).extra_length);
     let mut configuration = String::new();
     match handle {

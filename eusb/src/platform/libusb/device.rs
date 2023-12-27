@@ -2,27 +2,25 @@ use std::future::Future;
 use std::pin::Pin;
 use std::ptr::{null, null_mut};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use crate::platform::{DeviceCtx};
 use libusb_src::*;
-use crate::define::{ConfigDescriptor, DeviceDescriptor, Direction, Speed, UsbControlRecipient, UsbControlTransferType};
+use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor, Direction, Speed};
 use crate::platform::libusb::{config_descriptor_convert, ToLib};
 use crate::platform::libusb::device_handle::DeviceHandle;
 use crate::platform::libusb::endpoint::EndpointInImpl;
 use crate::platform::libusb::errors::*;
-use crate::prelude::EndpointIn;
 
 pub(crate) struct DeviceCtxImpl {
     dev: Arc<Device>,
     opened: Arc<Mutex<Option<OpenedDevice>>>,
 }
 
-struct OpenedDevice{
+struct OpenedDevice {
     handle: Arc<DeviceHandle>,
 }
 
 impl OpenedDevice {
-    fn new(handle: DeviceHandle)->Self{
+    fn new(handle: DeviceHandle) -> Self {
         Self {
             handle: Arc::new(handle),
         }
@@ -41,9 +39,9 @@ impl From<Device> for DeviceCtxImpl {
 impl From<DeviceHandle> for DeviceCtxImpl {
     fn from(value: DeviceHandle) -> Self {
         let dev = value.get_device();
-        Self{
+        Self {
             dev: Arc::new(dev),
-            opened: Arc::new(Mutex::new(Some(OpenedDevice::new(value))))
+            opened: Arc::new(Mutex::new(Some(OpenedDevice::new(value)))),
         }
     }
 }
@@ -62,19 +60,19 @@ impl DeviceCtxImpl {
         f(h)
     }
 
-    fn open_endpoint(&self, endpoint: u8)->Result{
+    fn open_endpoint(&self, endpoint: u8) -> Result {
         let cfg = self.dev.get_active_config_descriptor(None)?;
         let mut interface_num = 0;
-        for alt in cfg.interfaces{
-            for interface in alt.alt_settings{
-                for ep in interface.endpoints{
-                    if ep.num == endpoint{
+        for alt in cfg.interfaces {
+            for interface in alt.alt_settings {
+                for ep in interface.endpoints {
+                    if ep.num == endpoint {
                         interface_num = interface.num;
                     }
                 }
             }
         }
-        self.use_opened(|h|{
+        self.use_opened(|h| {
             h.handle.claim_interface(interface_num)?;
             Ok(())
         })?;
@@ -84,7 +82,7 @@ impl DeviceCtxImpl {
     }
 }
 
-fn open(dev: Arc<Device>, opened:  &Arc<Mutex<Option<OpenedDevice>>>) -> Result<Arc<DeviceHandle>> {
+fn open(dev: Arc<Device>, opened: &Arc<Mutex<Option<OpenedDevice>>>) -> Result<Arc<DeviceHandle>> {
     let g = opened.lock().unwrap();
     if let Some(o) = g.as_ref() {
         return Ok(o.handle.clone());
@@ -97,6 +95,7 @@ fn open(dev: Arc<Device>, opened:  &Arc<Mutex<Option<OpenedDevice>>>) -> Result<
     *g = Some(o);
     Ok(h)
 }
+
 impl DeviceCtx for DeviceCtxImpl {
     fn device_descriptor(&self) -> Result<DeviceDescriptor> {
         self.dev.device_descriptor()
@@ -129,37 +128,41 @@ impl DeviceCtx for DeviceCtxImpl {
 
     fn open_endpoint_in(&self, endpoint: u8) -> Result<EndpointInImpl> {
         self.open_endpoint(endpoint)?;
-        Ok(EndpointInImpl{})
+        Ok(EndpointInImpl {})
     }
 
     fn control_transfer_in(
-        &self,
-        recipient: UsbControlRecipient,
-        transfer_type: UsbControlTransferType,
-        request: u8, value: u16, index: u16, timeout: Duration, capacity: usize) -> Pin<Box<dyn Future<Output=Result<Vec<u8>>>>> {
-        let rt: u32 = Direction::In.to_lib() | transfer_type.to_lib() | recipient.to_lib();
+        &self, control_transfer_request: ControlTransferRequest, capacity: usize) -> Pin<Box<dyn Future<Output=Result<Vec<u8>>>>> {
+        let rt: u32 = Direction::In.to_lib() | control_transfer_request.transfer_type.to_lib() | control_transfer_request.recipient.to_lib();
         let opened = self.opened.clone();
         let dev = self.dev.clone();
-        Box::pin(async move{
+        Box::pin(async move {
             let mut data = vec![0; capacity];
             let handle = open(dev, &opened)?;
-            let tran = handle.control_transfer(data.as_mut(), rt as _, request, value, index, timeout).await?;
+            let tran = handle.control_transfer(
+                data.as_mut(), rt as _,
+                control_transfer_request.request,
+                control_transfer_request.value,
+                control_transfer_request.index,
+                control_transfer_request.timeout).await?;
             Ok(tran.control_transfer_get_data().to_vec())
         })
     }
 
     fn control_transfer_out(
         &self,
-        recipient: UsbControlRecipient,
-        transfer_type: UsbControlTransferType,
-        request: u8, value: u16, index: u16, timeout: Duration, data: &[u8]) -> Pin<Box<dyn Future<Output=Result<usize>>>> {
-        let rt: u32 = Direction::In.to_lib() | transfer_type.to_lib() | recipient.to_lib();
+        control_transfer_request: ControlTransferRequest, data: &[u8]) -> Pin<Box<dyn Future<Output=Result<usize>>>> {
+        let rt: u32 = Direction::In.to_lib() | control_transfer_request.transfer_type.to_lib() | control_transfer_request.recipient.to_lib();
         let opened = self.opened.clone();
         let dev = self.dev.clone();
         let mut data = data.to_vec();
-        Box::pin(async move{
+        Box::pin(async move {
             let handle = open(dev, &opened)?;
-            let tran = handle.control_transfer(data.as_mut(), rt as _, request, value, index, timeout).await?;
+            let tran = handle.control_transfer(data.as_mut(), rt as _,
+                                               control_transfer_request.request,
+                                               control_transfer_request.value,
+                                               control_transfer_request.index,
+                                               control_transfer_request.timeout).await?;
             Ok(tran.actual_length())
         })
     }
@@ -173,24 +176,24 @@ unsafe impl Send for Device {}
 unsafe impl Sync for Device {}
 
 impl Device {
-    pub fn open(&self)->Result<DeviceHandle>{
-       unsafe {
-           let mut ptr = null_mut();
-           check_err(libusb_open(self.0, &mut ptr))?;
-           let h = DeviceHandle::from(ptr);
-           Ok(h)
-       }
+    pub fn open(&self) -> Result<DeviceHandle> {
+        unsafe {
+            let mut ptr = null_mut();
+            check_err(libusb_open(self.0, &mut ptr))?;
+            let h = DeviceHandle::from(ptr);
+            Ok(h)
+        }
     }
 
     fn speed(&self) -> Result<Speed> {
         unsafe {
-            let r = check_err( libusb_get_device_speed(self.0))?;
+            let r = check_err(libusb_get_device_speed(self.0))?;
             Ok(match r {
-                LIBUSB_SPEED_LOW=> Speed::Low,
-                LIBUSB_SPEED_FULL=> Speed::Full,
-                LIBUSB_SPEED_HIGH=> Speed::High,
-                LIBUSB_SPEED_SUPER=> Speed::Super,
-                LIBUSB_SPEED_SUPER_PLUS=> Speed::SuperPlus,
+                LIBUSB_SPEED_LOW => Speed::Low,
+                LIBUSB_SPEED_FULL => Speed::Full,
+                LIBUSB_SPEED_HIGH => Speed::High,
+                LIBUSB_SPEED_SUPER => Speed::Super,
+                LIBUSB_SPEED_SUPER_PLUS => Speed::SuperPlus,
                 _ => Speed::Unknown
             })
         }
@@ -228,7 +231,7 @@ impl Device {
         Ok(out)
     }
 
-    pub fn get_active_config_descriptor(&self, handle: Option<&DeviceHandle>)->Result<ConfigDescriptor>{
+    pub fn get_active_config_descriptor(&self, handle: Option<&DeviceHandle>) -> Result<ConfigDescriptor> {
         let speed = self.speed()?;
         unsafe {
             let mut raw = null();

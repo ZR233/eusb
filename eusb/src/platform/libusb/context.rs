@@ -1,12 +1,9 @@
 use std::ptr::{null_mut, slice_from_raw_parts};
-use std::sync::Arc;
 use log::debug;
-use crate::device::UsbDevice;
 use crate::error::*;
 use libusb_src::*;
 use crate::platform::libusb::device::Device;
 use crate::platform::libusb::errors::*;
-use crate::platform::{DeviceCtxImpl, ManagerCtx};
 use crate::platform::libusb::device_handle::DeviceHandle;
 
 
