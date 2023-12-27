@@ -5,7 +5,7 @@ use crate::device::UsbDevice;
 pub(crate) mod libusb;
 #[cfg(libusb)]
 pub(crate)  use libusb::{ device::DeviceCtxImpl, manager::ManagerCtxImpl};
-use crate::define::DeviceDescriptor;
+use crate::define::{ConfigDescriptor, DeviceDescriptor};
 
 
 pub(crate) trait DeviceCtx{
@@ -13,6 +13,7 @@ pub(crate) trait DeviceCtx{
     fn serial_number(&self)->Result<String>;
     fn bus_number(&self)->u8;
     fn device_address(&self)->u8;
+    fn get_active_configuration(&self)->Result<ConfigDescriptor>;
 }
 
 pub(crate) trait ManagerCtx {

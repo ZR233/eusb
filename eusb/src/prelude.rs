@@ -18,6 +18,10 @@ mod tests{
             if let Ok(sn)= device.serial_number() {
                 info!("sn: {sn}");
             }
+
+            let cfg = device.get_active_configuration().unwrap();
+
+            info!("cfg: {}", cfg.configuration);
         }
     }
 }

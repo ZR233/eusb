@@ -1,8 +1,9 @@
-use std::ptr::null_mut;
+use std::ptr::{null, null_mut};
 use std::sync::{Arc, Mutex};
 use crate::platform::DeviceCtx;
 use libusb_src::*;
-use crate::define::DeviceDescriptor;
+use crate::define::{ConfigDescriptor, DeviceDescriptor, Speed};
+use crate::platform::libusb::config_descriptor_convert;
 use crate::platform::libusb::device_handle::DeviceHandle;
 use crate::platform::libusb::errors::*;
 
@@ -66,6 +67,11 @@ impl DeviceCtx for DeviceCtxImpl {
             libusb_get_device_address(self.dev.0)
         }
     }
+
+    fn get_active_configuration(&self) -> Result<ConfigDescriptor> {
+        let g = self.handle.lock().unwrap();
+       self.dev.get_active_config_descriptor(g.as_ref())
+    }
 }
 
 
@@ -85,6 +91,19 @@ impl Device {
        }
     }
 
+    fn speed(&self) -> Result<Speed> {
+        unsafe {
+            let r = check_err( libusb_get_device_speed(self.0))?;
+            Ok(match r {
+                LIBUSB_SPEED_LOW=> Speed::Low,
+                LIBUSB_SPEED_FULL=> Speed::Full,
+                LIBUSB_SPEED_HIGH=> Speed::High,
+                LIBUSB_SPEED_SUPER=> Speed::Super,
+                LIBUSB_SPEED_SUPER_PLUS=> Speed::SuperPlus,
+                _ => Speed::Unknown
+            })
+        }
+    }
 
     pub fn get_max_packet_size(&self, endpoint: usize) -> Result<usize> {
         unsafe {
@@ -116,6 +135,17 @@ impl Device {
             }
         };
         Ok(out)
+    }
+
+    pub fn get_active_config_descriptor(&self, handle: Option<&DeviceHandle>)->Result<ConfigDescriptor>{
+        let speed = self.speed()?;
+        unsafe {
+            let mut raw = null();
+            check_err(libusb_get_active_config_descriptor(self.0, &mut raw))?;
+            let cfg = config_descriptor_convert(raw, handle, speed);
+            libusb_free_config_descriptor(raw);
+            Ok(cfg)
+        }
     }
 }
 

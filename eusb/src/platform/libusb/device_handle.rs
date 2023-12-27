@@ -26,6 +26,39 @@ impl Drop for DeviceHandle{
 }
 
 impl DeviceHandle{
+    
+    pub fn claim_interface(&self, interface_number: usize)->Result{
+        unsafe {
+            check_err( libusb_claim_interface(self.0, interface_number as _))?;
+            Ok(())
+        }
+    }
+    pub fn release_interface(&self, interface_number: usize)->Result{
+        unsafe {
+            check_err( libusb_release_interface(self.0, interface_number as _))?;
+            Ok(())
+        }
+    }
+    pub fn get_configuration(&self)->Result<i32>{
+        unsafe {
+            let mut c = 0;
+            check_err(libusb_get_configuration(self.0, &mut c))?;
+           Ok(c as _)
+        }
+    }
+
+    pub fn set_configuration(&self, config: i32)->Result{
+        unsafe {
+            check_err(libusb_set_configuration(self.0, config as _))?;
+            Ok(())
+        }
+    }
+    pub fn clear_halt(&self, endpoint: usize)->Result{
+        unsafe {
+            check_err(libusb_clear_halt( self .0,endpoint as _))?;
+            Ok(())
+        }
+    }
 
     pub fn get_string_descriptor_ascii(&self, index: u8)->Result<String>{
         unsafe {

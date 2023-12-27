@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use crate::define::DeviceDescriptor;
+use crate::define::{ConfigDescriptor, DeviceDescriptor};
 use crate::error::*;
 use crate::manager::Manager;
 use crate::platform::{DeviceCtx, DeviceCtxImpl};
@@ -39,5 +39,9 @@ impl UsbDevice {
 
     pub fn device_descriptor(&self) -> Result<DeviceDescriptor> {
         self.ctx.device_descriptor()
+    }
+
+    pub fn get_active_configuration(&self)->Result<ConfigDescriptor>{
+        self.ctx.get_active_configuration()
     }
 }
