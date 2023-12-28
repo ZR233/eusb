@@ -22,6 +22,12 @@ type AsyncResult<T=()> =  Pin<Box<dyn Future<Output=Result<T>>>>;
 
 pub(crate) trait DeviceCtx {
     fn device_descriptor(&self) -> Result<DeviceDescriptor>;
+    fn get_string_ascii(&self, index: u8)-> Result<String>;
+
+    fn device_class(&self) -> Result<DeviceClass>;
+    fn device_subclass(&self) -> Result<DeviceClass>;
+    fn device_protocol(&self) -> Result<DeviceClass>;
+
     fn serial_number(&self) -> Result<String>;
     fn bus_number(&self) -> u8;
     fn device_address(&self) -> u8;

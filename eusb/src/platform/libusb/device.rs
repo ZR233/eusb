@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use crate::platform::{AsyncResult, DeviceCtx};
 use libusb_src::*;
-use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor, Direction, PipConfig, Speed};
-use crate::platform::libusb::{config_descriptor_convert, ToLib};
+use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceClass, DeviceDescriptor, Direction, PipConfig, Speed};
+use crate::platform::libusb::{class_from_lib, config_descriptor_convert, ToLib};
 use crate::platform::libusb::device_handle::{DeviceHandle, TransferDirection};
 use crate::platform::libusb::endpoint::EndpointInImpl;
 use crate::platform::libusb::errors::*;
@@ -134,11 +134,27 @@ impl DeviceCtx for DeviceCtxImpl {
         self.dev.device_descriptor()
     }
 
+    fn get_string_ascii(&self, index: u8) -> Result<String> {
+        self.use_opened(move |h| {
+            h.handle.get_string_descriptor_ascii(index)
+        })
+    }
+
+    fn device_class(&self) -> Result<DeviceClass> {
+        Ok( class_from_lib(self.device_descriptor()?.bDeviceClass))
+    }
+
+    fn device_subclass(&self) -> Result<DeviceClass> {
+        Ok( class_from_lib(self.device_descriptor()?.bDeviceSubClass))
+    }
+
+    fn device_protocol(&self) -> Result<DeviceClass> {
+        Ok( class_from_lib(self.device_descriptor()?.bDeviceProtocol))
+    }
+
     fn serial_number(&self) -> Result<String> {
         let des = self.device_descriptor()?;
-        self.use_opened(move |h| {
-            h.handle.get_string_descriptor_ascii(des.iSerialNumber)
-        })
+        self.get_string_ascii(des.iSerialNumber)
     }
 
     fn bus_number(&self) -> u8 {
