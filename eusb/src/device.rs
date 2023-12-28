@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use std::time::Duration;
 use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor, PipConfig};
 use crate::endpoint::EndpointPipIn;
 use crate::error::*;
@@ -71,5 +72,28 @@ impl UsbDevice {
         data: &[u8],
     ) -> Result<usize> {
         self.ctx.control_transfer_out(control_transfer_request, data).await
+    }
+
+    pub async fn bulk_transfer_in(
+        &self, endpoint: u8, capacity: usize, timeout: Duration,
+    ) -> Result<Vec<u8>> {
+        self.ctx.bulk_transfer_in(endpoint, capacity, timeout).await
+    }
+
+    pub async fn bulk_transfer_out(
+        &self, endpoint: u8, data: &[u8], timeout: Duration,
+    ) -> Result<usize> {
+        self.ctx.bulk_transfer_out(endpoint, data, timeout).await
+    }
+    pub async fn interrupt_transfer_in(
+        &self, endpoint: u8, capacity: usize, timeout: Duration,
+    ) -> Result<Vec<u8>> {
+        self.ctx.interrupt_transfer_in(endpoint, capacity, timeout).await
+    }
+
+    pub async fn interrupt_transfer_out(
+        &self, endpoint: u8, data: &[u8], timeout: Duration,
+    ) -> Result<usize> {
+        self.ctx.interrupt_transfer_out(endpoint, data, timeout).await
     }
 }

@@ -2,7 +2,7 @@ use std::sync::{Arc, Weak};
 use libusb_src::libusb_transfer;
 use crate::define::PipConfig;
 use crate::platform::EndpointInInner;
-use crate::platform::libusb::device_handle::DeviceHandle;
+use crate::platform::libusb::device_handle::{DeviceHandle, TransferDirection};
 use crate::platform::libusb::transfer::Transfer;
 use futures::channel::mpsc::channel;
 
@@ -28,7 +28,7 @@ impl EndpointCtx{
 
         unsafe {
             for _ in 0..config.pip_size {
-                let mut transfer = Transfer::bulk_transfer(endpoint, pip_cb, config.package_size, config.timeout);
+                let mut transfer = Transfer::bulk_transfer(endpoint, pip_cb, TransferDirection::In {len: config.package_size}, config.timeout);
                 transfer.set_handle(handle_ptr);
                 let tb = Box::new(tx.clone());
                 let txp = Box::into_raw(tb);

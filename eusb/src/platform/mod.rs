@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::pin::Pin;
+use std::time::Duration;
 use crate::error::*;
 use crate::device::UsbDevice;
 use crate::define::*;
@@ -16,17 +17,21 @@ pub(crate) trait EndpointInInner {}
 
 pub(crate) trait EndpointOutInner {}
 
+
+type AsyncResult<T=()> =  Pin<Box<dyn Future<Output=Result<T>>>>;
+
 pub(crate) trait DeviceCtx {
     fn device_descriptor(&self) -> Result<DeviceDescriptor>;
     fn serial_number(&self) -> Result<String>;
     fn bus_number(&self) -> u8;
     fn device_address(&self) -> u8;
     fn get_active_configuration(&self) -> Result<ConfigDescriptor>;
-    fn control_transfer_in(&self, control_transfer_request: ControlTransferRequest, capacity: usize,
-    ) -> Pin<Box<dyn Future<Output=Result<Vec<u8>>>>>;
-    fn control_transfer_out(&self, control_transfer_request: ControlTransferRequest, data: &[u8],
-    ) -> Pin<Box<dyn Future<Output=Result<usize>>>>;
-
+    fn control_transfer_in(&self, control_transfer_request: ControlTransferRequest, capacity: usize) -> AsyncResult<Vec<u8>>;
+    fn control_transfer_out(&self, control_transfer_request: ControlTransferRequest, data: &[u8], ) -> AsyncResult<usize>;
+    fn bulk_transfer_in(&self, endpoint: u8, capacity: usize, timeout: Duration) ->AsyncResult<Vec<u8>>;
+    fn bulk_transfer_out(&self, endpoint: u8, data: &[u8], timeout: Duration)->AsyncResult<usize>;
+    fn interrupt_transfer_in(&self, endpoint: u8, capacity: usize, timeout: Duration) ->AsyncResult<Vec<u8>>;
+    fn interrupt_transfer_out(&self, endpoint: u8, data: &[u8], timeout: Duration)->AsyncResult<usize>;
     fn bulk_transfer_pip_in(&self, endpoint: u8, pip_config: PipConfig)->Result<EndpointInImpl>;
 }
 

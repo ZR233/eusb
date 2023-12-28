@@ -1,12 +1,12 @@
 use std::future::Future;
-use std::pin::Pin;
 use std::ptr::{null, null_mut};
 use std::sync::{Arc, Mutex};
-use crate::platform::{DeviceCtx};
+use std::time::Duration;
+use crate::platform::{AsyncResult, DeviceCtx};
 use libusb_src::*;
 use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceDescriptor, Direction, PipConfig, Speed};
 use crate::platform::libusb::{config_descriptor_convert, ToLib};
-use crate::platform::libusb::device_handle::DeviceHandle;
+use crate::platform::libusb::device_handle::{DeviceHandle, TransferDirection};
 use crate::platform::libusb::endpoint::EndpointInImpl;
 use crate::platform::libusb::errors::*;
 
@@ -48,7 +48,7 @@ impl From<DeviceHandle> for DeviceCtxImpl {
 
 impl DeviceCtxImpl {
     fn open(&self) -> Result {
-        open(self.dev.clone(), &self.opened)?;
+        open(&self.dev, &self.opened)?;
         Ok(())
     }
 
@@ -62,16 +62,7 @@ impl DeviceCtxImpl {
 
     fn open_endpoint(&self, endpoint: u8) -> Result {
         let cfg = self.dev.get_active_config_descriptor(None)?;
-        let mut interface_num = 0;
-        for alt in cfg.interfaces {
-            for interface in alt.alt_settings {
-                for ep in interface.endpoints {
-                    if ep.num == endpoint {
-                        interface_num = interface.num;
-                    }
-                }
-            }
-        }
+        let interface_num = endpoint_get_interface_num(&cfg, endpoint);
         self.use_opened(|h| {
             h.handle.claim_interface(interface_num)?;
             Ok(())
@@ -80,9 +71,22 @@ impl DeviceCtxImpl {
 
         Ok(())
     }
+
+
+    fn async_handle<'a, T, F, O>(&self, f: F) -> impl Future<Output=Result<T>>
+        where F: FnOnce(Arc<Device>, Arc<DeviceHandle>) -> O + 'a + Send,
+              O: Future<Output=Result<T>> + Send + 'a
+    {
+        let opened = self.opened.clone();
+        let dev = self.dev.clone();
+        async move {
+            let handle = open(&dev, &opened)?;
+            f(dev, handle).await
+        }
+    }
 }
 
-fn open(dev: Arc<Device>, opened: &Arc<Mutex<Option<OpenedDevice>>>) -> Result<Arc<DeviceHandle>> {
+fn open(dev: &Arc<Device>, opened: &Arc<Mutex<Option<OpenedDevice>>>) -> Result<Arc<DeviceHandle>> {
     let g = opened.lock().unwrap();
     if let Some(o) = g.as_ref() {
         return Ok(o.handle.clone());
@@ -94,6 +98,35 @@ fn open(dev: Arc<Device>, opened: &Arc<Mutex<Option<OpenedDevice>>>) -> Result<A
     let h = o.handle.clone();
     *g = Some(o);
     Ok(h)
+}
+
+fn endpoint_get_interface_num(cfg: &ConfigDescriptor, endpoint: u8) -> u8 {
+    for alt in &cfg.interfaces {
+        for interface in &alt.alt_settings {
+            for ep in &interface.endpoints {
+                if ep.num == endpoint {
+                    return interface.num;
+                }
+            }
+        }
+    }
+    0
+}
+
+fn open_endpoint(endpoint: u8, dev: &Arc<Device>, handle: &Arc<DeviceHandle>) -> Result {
+    let cfg = dev.get_active_config_descriptor(None)?;
+    let interface_num = endpoint_get_interface_num(&cfg, endpoint);
+    handle.claim_interface(interface_num)?;
+    Ok(())
+}
+macro_rules! async_opened {
+    ($self:ident, $a: ident, $b: ident, $f: expr) => {
+         Box::pin($self.async_handle(move |$a, $b| {
+            async move {
+                $f
+            }
+        }))
+    };
 }
 
 impl DeviceCtx for DeviceCtxImpl {
@@ -128,43 +161,91 @@ impl DeviceCtx for DeviceCtxImpl {
 
 
     fn control_transfer_in(
-        &self, control_transfer_request: ControlTransferRequest, capacity: usize) -> Pin<Box<dyn Future<Output=Result<Vec<u8>>>>> {
-        let rt: u32 = Direction::In.to_lib() | control_transfer_request.transfer_type.to_lib() | control_transfer_request.recipient.to_lib();
-        let opened = self.opened.clone();
-        let dev = self.dev.clone();
-        Box::pin(async move {
-            let mut data = vec![0; capacity];
-            let handle = open(dev, &opened)?;
+        &self, control_transfer_request: ControlTransferRequest, capacity: usize) -> AsyncResult<Vec<u8>> {
+        let rt: u8 = Direction::In.to_lib() | control_transfer_request.transfer_type.to_lib() | control_transfer_request.recipient.to_lib();
+
+        async_opened!(self, _dev, handle, {
             let tran = handle.control_transfer(
-                data.as_mut(), rt as _,
-                control_transfer_request.request,
-                control_transfer_request.value,
-                control_transfer_request.index,
-                control_transfer_request.timeout).await?;
-            Ok(tran.control_transfer_get_data().to_vec())
+                    TransferDirection::In { len: capacity }, rt as _,
+                    control_transfer_request.request,
+                    control_transfer_request.value,
+                    control_transfer_request.index,
+                    control_transfer_request.timeout).await?;
+                Ok(tran.control_transfer_get_data().to_vec())
         })
     }
 
     fn control_transfer_out(
         &self,
-        control_transfer_request: ControlTransferRequest, data: &[u8]) -> Pin<Box<dyn Future<Output=Result<usize>>>> {
-        let rt: u32 = Direction::In.to_lib() | control_transfer_request.transfer_type.to_lib() | control_transfer_request.recipient.to_lib();
-        let opened = self.opened.clone();
-        let dev = self.dev.clone();
-        let mut data = data.to_vec();
-        Box::pin(async move {
-            let handle = open(dev, &opened)?;
-            let tran = handle.control_transfer(data.as_mut(), rt as _,
-                                               control_transfer_request.request,
-                                               control_transfer_request.value,
-                                               control_transfer_request.index,
-                                               control_transfer_request.timeout).await?;
+        control_transfer_request: ControlTransferRequest, data: &[u8]) -> AsyncResult<usize> {
+        let rt: u8 = Direction::Out.to_lib() | control_transfer_request.transfer_type.to_lib() | control_transfer_request.recipient.to_lib();
+        let data = data.to_vec();
+
+        async_opened!(self, _dev, handle, {
+            let tran = handle.control_transfer(
+                TransferDirection::Out { data }, rt,
+                control_transfer_request.request,
+                control_transfer_request.value,
+                control_transfer_request.index,
+                control_transfer_request.timeout).await?;
+            Ok(tran.actual_length())
+        })
+    }
+
+    fn bulk_transfer_in(&self, endpoint: u8, capacity: usize, timeout: Duration) -> AsyncResult<Vec<u8>> {
+        async_opened!(self, dev, handle, {
+            open_endpoint(endpoint, &dev, &handle)?;
+
+            let tran = handle.bulk_transfer(
+                TransferDirection::In { len: capacity },
+                endpoint, timeout, false).await?;
+
+            Ok(tran.data[..tran.actual_length()].to_vec())
+        })
+    }
+
+    fn bulk_transfer_out(&self, endpoint: u8, data: &[u8], timeout: Duration) -> AsyncResult<usize> {
+        let data = data.to_vec();
+
+        async_opened!(self, dev, handle, {
+            open_endpoint(endpoint, &dev, &handle)?;
+
+            let tran = handle.bulk_transfer(
+                TransferDirection::Out { data },
+                endpoint, timeout, false).await?;
+
+            Ok(tran.actual_length())
+        })
+    }
+
+    fn interrupt_transfer_in(&self, endpoint: u8, capacity: usize, timeout: Duration) -> AsyncResult<Vec<u8>> {
+        async_opened!(self, dev, handle, {
+            open_endpoint(endpoint, &dev, &handle)?;
+
+            let tran = handle.bulk_transfer(
+                TransferDirection::In { len: capacity },
+                endpoint, timeout, true).await?;
+
+            Ok(tran.data[..tran.actual_length()].to_vec())
+        })
+    }
+
+    fn interrupt_transfer_out(&self, endpoint: u8, data: &[u8], timeout: Duration) -> AsyncResult<usize> {
+        let data = data.to_vec();
+
+        async_opened!(self, dev, handle, {
+            open_endpoint(endpoint, &dev, &handle)?;
+
+            let tran = handle.bulk_transfer(
+                TransferDirection::Out { data },
+                endpoint, timeout, true).await?;
+
             Ok(tran.actual_length())
         })
     }
 
     fn bulk_transfer_pip_in(&self, endpoint: u8, pip_config: PipConfig) -> Result<EndpointInImpl> {
-        let handle = open(self.dev.clone(), &self.opened)?;
+        let handle = open(&self.dev, &self.opened)?;
         self.open_endpoint(endpoint)?;
         Ok(EndpointInImpl::new(&handle, endpoint, pip_config))
     }

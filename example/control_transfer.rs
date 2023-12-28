@@ -10,13 +10,13 @@ async fn main() {
         let device = UsbDevice::open_with_vid_pid(0x1D50, 0x6089).unwrap();
 
         info!("{}", device);
-        if let Ok(sn) = device.serial_number() {
-            info!("sn: {sn}");
-        }
-
-        let cfg = device.get_active_configuration().unwrap();
-
-        info!("cfg: {}", cfg.configuration);
+        // if let Ok(sn) = device.serial_number() {
+        //     info!("sn: {sn}");
+        // }
+        //
+        // let cfg = device.get_active_configuration().unwrap();
+        //
+        // info!("cfg: {}", cfg.configuration);
 
         let start = Instant::now();
 
