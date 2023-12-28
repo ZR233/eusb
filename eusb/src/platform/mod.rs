@@ -5,6 +5,8 @@ use futures::future::LocalBoxFuture;
 use crate::error::*;
 use crate::device::UsbDevice;
 use crate::define::*;
+#[cfg(unix)]
+pub use std::os::unix::io::RawFd;
 
 
 #[cfg(libusb)]
@@ -46,5 +48,7 @@ pub(crate) trait ManagerCtx {
     fn new() -> Self;
     fn device_list(&self) -> Result<Vec<UsbDevice>>;
     fn open_device_with_vid_pid(&self, vid: u16, pid: u16) -> Result<UsbDevice>;
+    #[cfg(unix)]
+    fn open_device_with_fd(&self, fd: RawFd)->Result<UsbDevice>;
     fn close(&self);
 }

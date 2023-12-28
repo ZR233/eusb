@@ -1,3 +1,5 @@
+
+
 use std::ptr::{null_mut, slice_from_raw_parts};
 use log::debug;
 use crate::error::*;
@@ -5,6 +7,7 @@ use libusb_src::*;
 use crate::platform::libusb::device::Device;
 use crate::platform::libusb::errors::*;
 use crate::platform::libusb::device_handle::DeviceHandle;
+use crate::platform::*;
 
 
 pub(crate) struct Context(*mut libusb_context);
@@ -49,6 +52,14 @@ impl Context {
         }
     }
 
+    #[cfg(unix)]
+    pub(crate) fn open_device_with_fd(&self, fd: RawFd)->Result<DeviceHandle>{
+        unsafe {
+            let mut handle= null_mut();
+            check_err( libusb_wrap_sys_device(self.0, fd as _, &mut handle))?;
+            Ok(DeviceHandle::from(handle))
+        }
+    }
 
     pub(crate) fn exit(&self){
         unsafe {

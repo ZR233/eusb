@@ -4,7 +4,7 @@ use crate::define::*;
 use crate::endpoint::{EndpointPipIn};
 use crate::error::*;
 use crate::manager::Manager;
-use crate::platform::{DeviceCtx, DeviceCtxImpl};
+use crate::platform::*;
 use crate::utils::bcd_to_version;
 
 
@@ -39,6 +39,12 @@ impl UsbDevice {
     pub fn open_with_vid_pid(vid: u16, pid: u16) -> Result<UsbDevice> {
         let manager = Manager::get();
         manager.open_device_with_vid_pid(vid, pid)
+    }
+
+    #[cfg(unix)]
+    pub fn open_with_fd(fd: RawFd)->Result<UsbDevice>{
+        let manager = Manager::get();
+        manager.open_device_with_fd(fd)
     }
 
     pub fn serial_number(&self) -> Result<String> {

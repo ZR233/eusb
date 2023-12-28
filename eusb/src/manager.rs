@@ -1,8 +1,10 @@
 use std::sync::OnceLock;
 use ctor::{ctor, dtor};
 use crate::device::UsbDevice;
-use crate::platform::*;
+pub(crate) use crate::platform::*;
 use crate::error::*;
+
+
 
 static  MANAGER: OnceLock<Manager> = OnceLock::new();
 
@@ -20,6 +22,12 @@ impl Manager{
     pub fn open_device_with_vid_pid(&self, vid: u16, pid: u16)->Result<UsbDevice>{
         self.platform.open_device_with_vid_pid(vid, pid)
     }
+
+    #[cfg(unix)]
+    pub fn open_device_with_fd(&self, fd: RawFd)->Result<UsbDevice>{
+        self.platform.open_device_with_fd(fd)
+    }
+
 }
 
 #[ctor]

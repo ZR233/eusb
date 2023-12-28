@@ -4,8 +4,7 @@ use log::{debug};
 use thread_priority::{ThreadBuilderExt, ThreadPriority};
 use crate::device::UsbDevice;
 use crate::platform::libusb::context::Context;
-use crate::platform::{DeviceCtxImpl, ManagerCtx};
-use super::errors::*;
+use crate::platform::*;
 
 pub(crate) struct ManagerCtxImpl {
     ctx: Arc<Context>,
@@ -50,6 +49,12 @@ impl ManagerCtx for ManagerCtxImpl {
         Ok(dev.into())
     }
 
+    #[cfg(unix)]
+    fn open_device_with_fd(&self, fd: RawFd) -> Result<UsbDevice> {
+        let handle = self.ctx.open_device_with_fd(fd)?;
+        let dev = DeviceCtxImpl::from(handle);
+        Ok(dev.into())
+    }
 
     fn close(&self) {
         {
