@@ -18,6 +18,7 @@ pub(crate) enum TransferDirection {
     In { len: usize },
 }
 
+#[allow(unused)]
 impl Transfer {
     pub fn new(iso_packets: i32, size: usize) -> Self {
         unsafe {

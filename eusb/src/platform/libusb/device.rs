@@ -168,6 +168,56 @@ impl DeviceCtx for DeviceCtxImpl {
         }).collect())
     }
 
+    fn set_config_by_value(&self, config_value: u8) -> Result {
+        let cfg_old = self.get_active_configuration()?;
+        if cfg_old.value==config_value {
+            return  Ok(())
+        }
+
+        self.use_opened(move|opened|{
+            match opened.handle.set_auto_detach_kernel_driver_with_guard(false){
+                Ok(guard) => {
+                    let mut interfaces = vec![];
+
+                    for atl in &cfg_old.interfaces{
+                        for interface in &atl.alt_settings{
+                            interfaces.push(interface.num);
+                        }
+                    }
+
+                    for i in interfaces{
+                        match opened.handle.kernel_driver_active(i){
+                            Ok(active) => {
+                                if active{
+                                    opened.handle.detach_kernel_driver(i)?;
+                                }
+                            }
+                            Err(e) => {
+                                match e {
+                                    Error::NotSupported => {break;}
+                                    _ => { return  Err(e); }
+                                }
+                            }
+                        }
+                        let _ = opened.handle.release_interface(i);
+                    }
+                    drop(guard);
+                }
+                Err(e) => {
+                    match e {
+                        Error::NotSupported => {}
+                        _=> {return Err(e)}
+                    }
+                }
+            };
+
+            opened.handle.set_configuration(config_value)?;
+            Ok(())
+        })
+
+
+    }
+
     fn serial_number(&self) -> Result<String> {
         let des = self.device_descriptor()?;
         self.get_string_ascii(des.iSerialNumber)

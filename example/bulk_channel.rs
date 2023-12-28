@@ -35,10 +35,11 @@ async fn main(){
     {
         let mut ep = device.bulk_transfer_pip_in(1, PipConfig {
             package_size: 1024 * 256,
+            request_num: 6,
             ..Default::default()
         }).unwrap();
 
-        for _ in 0..10{
+        for _ in 0..50{
            if let Some(data) = ep.next().await{
                all+= data.len();
            }

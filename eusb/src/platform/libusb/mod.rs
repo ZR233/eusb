@@ -174,10 +174,10 @@ pub trait ToLib: Sized {
 
 impl ToLib for Direction {
     fn to_lib(self) -> u8 {
-        (match self {
+        match self {
             Direction::In { .. } => LIBUSB_ENDPOINT_IN,
             Direction::Out { .. } => LIBUSB_ENDPOINT_OUT,
-        })
+        }
     }
 }
 

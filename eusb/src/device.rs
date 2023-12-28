@@ -64,7 +64,7 @@ impl UsbDevice {
     pub fn config_list(&self) -> Result<Vec<ConfigDescriptor>> {
         self.ctx.config_list()
     }
-
+    pub fn set_config_by_value(&self, config_value: u8)->Result<()>{ self.ctx.set_config_by_value(config_value)}
     pub fn device_subclass(&self) -> Result<DeviceClass> {
         self.ctx.device_subclass()
     }

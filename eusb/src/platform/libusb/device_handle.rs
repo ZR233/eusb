@@ -46,6 +46,7 @@ impl Drop for DeviceHandle {
     }
 }
 
+#[allow(unused)]
 impl DeviceHandle {
     pub fn claim_interface(&self, interface_number: u8) -> Result {
         unsafe {
@@ -100,6 +101,33 @@ impl DeviceHandle {
             let out = c.to_string_lossy().to_string();
             Ok(out)
         }
+    }
+
+    pub fn set_auto_detach_kernel_driver(&self, enable: bool)->Result{
+        unsafe {
+            check_err( libusb_set_auto_detach_kernel_driver(self.ptr,if enable { 1 } else { 0 }))?;
+        }
+        Ok(())
+    }
+    pub fn set_auto_detach_kernel_driver_with_guard(&self, enable: bool)->Result<AutoDetachKernelDriverGuard>{
+        unsafe {
+            check_err( libusb_set_auto_detach_kernel_driver(self.ptr,if enable { 1 } else { 0 }))?;
+        }
+        Ok(AutoDetachKernelDriverGuard{dev: self.ptr})
+    }
+
+    pub fn kernel_driver_active(&self, interface_number: u8)->Result<bool>{
+        let r = unsafe {
+            check_err(libusb_kernel_driver_active(self.ptr,interface_number as _))?
+        };
+        Ok(r == 1)
+    }
+
+    pub fn detach_kernel_driver(&self, interface_number: u8)->Result{
+        unsafe {
+            check_err(libusb_detach_kernel_driver(self.ptr,interface_number as _))?;
+        }
+        Ok(())
     }
 
     pub fn get_device(&self) -> Device {
@@ -159,6 +187,19 @@ extern "system" fn sync_cb(transfer: *mut libusb_transfer) {
         }
     }
 }
+
+pub(crate) struct AutoDetachKernelDriverGuard{
+    dev: *mut libusb_device_handle
+}
+
+impl Drop for AutoDetachKernelDriverGuard {
+    fn drop(&mut self) {
+        unsafe {
+            libusb_set_auto_detach_kernel_driver(self.dev, 1);
+        }
+    }
+}
+
 
 struct SyncTransfer {
     inner: Arc<SyncTransferInner>,

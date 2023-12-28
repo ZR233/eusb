@@ -26,6 +26,7 @@ pub(crate) trait DeviceCtx {
     fn device_subclass(&self) -> Result<DeviceClass>;
     fn device_protocol(&self) -> Result<DeviceClass>;
     fn config_list(&self) -> Result<Vec<ConfigDescriptor>>;
+    fn set_config_by_value(&self, config_value: u8)->Result;
     fn serial_number(&self) -> Result<String>;
     fn bus_number(&self) -> u8;
     fn device_address(&self) -> u8;

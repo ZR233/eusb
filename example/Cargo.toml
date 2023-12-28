@@ -19,9 +19,7 @@ path = "bulk_transfer.rs"
 [[bin]]
 name = "bulk_channel"
 path = "bulk_channel.rs"
-[[bin]]
-name = "cancel"
-path = "cancel.rs"
+
 [[bin]]
 name = "device"
 path = "device.rs"

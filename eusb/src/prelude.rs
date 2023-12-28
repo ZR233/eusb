@@ -42,6 +42,9 @@ mod tests {
         let cfg = device.get_active_configuration().unwrap();
 
         info!("cfg: {}", cfg.configuration);
+        info!("cfg value: {}", cfg.value);
+
+        device.set_config_by_value(1).unwrap();
 
         let start = Instant::now();
 
