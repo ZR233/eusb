@@ -1,8 +1,13 @@
 use std::ffi::c_void;
 use std::ptr::{null_mut, slice_from_raw_parts_mut};
 use std::time::Duration;
-use log::{trace};
+
+use log::trace;
+
 use libusb_src::*;
+
+use crate::platform::libusb::status_to_result;
+
 use super::errors::*;
 
 pub(crate) struct Transfer {
@@ -11,6 +16,7 @@ pub(crate) struct Transfer {
 }
 
 unsafe impl Sync for Transfer {}
+
 unsafe impl Send for Transfer {}
 
 pub(crate) enum TransferDirection {
@@ -87,6 +93,35 @@ impl Transfer {
         t
     }
 
+    pub unsafe fn iso_transfer(
+        mut endpoint: u8,
+        num_iso_packets: i32,
+        callback: libusb_transfer_cb_fn,
+        direction: TransferDirection,
+        timeout: Duration,
+    ) -> Self {
+        endpoint = match &direction {
+            TransferDirection::Out { .. } => { LIBUSB_ENDPOINT_OUT | endpoint }
+            TransferDirection::In { .. } => { LIBUSB_ENDPOINT_IN | endpoint }
+        };
+        let mut t = Self::new_with_direction(num_iso_packets, direction);
+        let length = t.data.len() as i32;
+
+        unsafe {
+            let buffer_ptr = t.data.as_mut_ptr();
+            libusb_fill_iso_transfer(
+                t.ptr,
+                null_mut(),
+                endpoint,
+                buffer_ptr,
+                length,
+                num_iso_packets,
+                callback, null_mut(), timeout.as_millis() as _);
+
+            libusb_set_iso_packet_lengths(t.ptr, (length / num_iso_packets) as _)
+        }
+        t
+    }
 
     pub fn control_transfer_get_data(&self) -> &[u8] {
         unsafe {
@@ -132,24 +167,17 @@ impl Transfer {
         }
     }
 }
-pub(crate) trait ToResult{
-    fn to_result(&self)->Result;
+
+pub(crate) trait ToResult {
+    fn to_result(&self) -> Result;
 }
+
 
 impl ToResult for libusb_transfer {
     fn to_result(&self) -> Result {
-            match self.status {
-                LIBUSB_TRANSFER_COMPLETED => Ok(()),
-                LIBUSB_TRANSFER_OVERFLOW => Err(Error::Overflow),
-                LIBUSB_TRANSFER_TIMED_OUT => Err(Error::Timeout),
-                LIBUSB_TRANSFER_CANCELLED => Err(Error::Cancelled),
-                LIBUSB_TRANSFER_STALL => Err(Error::NotSupported),
-                LIBUSB_TRANSFER_NO_DEVICE => Err(Error::NoDevice),
-                _ => Err(Error::Other("Unknown".to_string())),
-            }
+        status_to_result(self.status)
     }
 }
-
 
 
 impl Drop for Transfer {

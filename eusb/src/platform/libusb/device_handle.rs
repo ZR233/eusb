@@ -138,7 +138,7 @@ impl DeviceHandle {
         }.into()
     }
 
-    async fn do_sync_transfer(&self, mut transfer: Transfer) -> Result<Transfer> {
+    pub async fn do_sync_transfer(&self, mut transfer: Transfer) -> Result<Transfer> {
         unsafe {
             transfer.set_handle(self.ptr);
             let future = SyncTransfer::new();
@@ -172,9 +172,15 @@ impl DeviceHandle {
             self.do_sync_transfer(transfer).await
         }
     }
+    pub async fn iso_transfer(&self,direction: TransferDirection, endpoint: u8, num_iso_packets: usize, timeout: Duration) -> Result<Transfer> {
+        unsafe {
+            let transfer = Transfer::iso_transfer(endpoint, num_iso_packets as _, sync_cb, direction, timeout);
+            self.do_sync_transfer(transfer).await
+        }
+    }
 }
 
-extern "system" fn sync_cb(transfer: *mut libusb_transfer) {
+pub(crate) extern "system" fn sync_cb(transfer: *mut libusb_transfer) {
     unsafe {
         let sync = (*transfer).user_data as *const SyncTransferInner;
         (*sync).is_ok.store(true, Ordering::SeqCst);

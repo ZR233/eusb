@@ -1,14 +1,16 @@
 use std::future::Future;
-use std::ptr::{null, null_mut};
+use std::ptr::{null, null_mut, slice_from_raw_parts, slice_from_raw_parts_mut};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use crate::platform::{AsyncResult, DeviceCtx};
 use libusb_src::*;
+
 use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceClass, DeviceDescriptor, Direction, PipConfig, Speed};
-use crate::platform::libusb::{class_from_lib, config_descriptor_convert, ToLib};
-use crate::platform::libusb::device_handle::{DeviceHandle, TransferDirection};
+use crate::platform::{AsyncResult, DeviceCtx};
+use crate::platform::libusb::{class_from_lib, config_descriptor_convert, status_to_result, ToLib};
+use crate::platform::libusb::device_handle::{DeviceHandle, sync_cb, TransferDirection};
 use crate::platform::libusb::endpoint::EndpointPipInImpl;
 use crate::platform::libusb::errors::*;
+use crate::platform::libusb::transfer::Transfer;
 
 pub(crate) struct DeviceCtxImpl {
     dev: Arc<Device>,
@@ -45,7 +47,7 @@ impl From<DeviceHandle> for DeviceCtxImpl {
         }
     }
 }
-
+#[allow(unused)]
 impl DeviceCtxImpl {
     fn open(&self) -> Result {
         open(&self.dev, &self.opened)?;
@@ -147,15 +149,15 @@ impl DeviceCtx for DeviceCtxImpl {
     }
 
     fn device_class(&self) -> Result<DeviceClass> {
-        Ok( class_from_lib(self.device_descriptor()?.bDeviceClass))
+        Ok(class_from_lib(self.device_descriptor()?.bDeviceClass))
     }
 
     fn device_subclass(&self) -> Result<DeviceClass> {
-        Ok( class_from_lib(self.device_descriptor()?.bDeviceSubClass))
+        Ok(class_from_lib(self.device_descriptor()?.bDeviceSubClass))
     }
 
     fn device_protocol(&self) -> Result<DeviceClass> {
-        Ok( class_from_lib(self.device_descriptor()?.bDeviceProtocol))
+        Ok(class_from_lib(self.device_descriptor()?.bDeviceProtocol))
     }
 
     fn config_list(&self) -> Result<Vec<ConfigDescriptor>> {
@@ -163,39 +165,39 @@ impl DeviceCtx for DeviceCtxImpl {
         let g = self.opened.lock().unwrap();
         let handle = g.as_ref().map(|o| o.handle.as_ref());
 
-        Ok((0..des.bNumConfigurations).map(|i|{
+        Ok((0..des.bNumConfigurations).map(|i| {
             self.dev.get_config_descriptor(i, handle).unwrap()
         }).collect())
     }
 
     fn set_config_by_value(&self, config_value: u8) -> Result {
         let cfg_old = self.get_active_configuration()?;
-        if cfg_old.value==config_value {
-            return  Ok(())
+        if cfg_old.value == config_value {
+            return Ok(());
         }
 
-        self.use_opened(move|opened|{
-            match opened.handle.set_auto_detach_kernel_driver_with_guard(false){
+        self.use_opened(move |opened| {
+            match opened.handle.set_auto_detach_kernel_driver_with_guard(false) {
                 Ok(guard) => {
                     let mut interfaces = vec![];
 
-                    for atl in &cfg_old.interfaces{
-                        for interface in &atl.alt_settings{
+                    for atl in &cfg_old.interfaces {
+                        for interface in &atl.alt_settings {
                             interfaces.push(interface.num);
                         }
                     }
 
-                    for i in interfaces{
-                        match opened.handle.kernel_driver_active(i){
+                    for i in interfaces {
+                        match opened.handle.kernel_driver_active(i) {
                             Ok(active) => {
-                                if active{
+                                if active {
                                     opened.handle.detach_kernel_driver(i)?;
                                 }
                             }
                             Err(e) => {
                                 match e {
-                                    Error::NotSupported => {break;}
-                                    _ => { return  Err(e); }
+                                    Error::NotSupported => { break; }
+                                    _ => { return Err(e); }
                                 }
                             }
                         }
@@ -206,7 +208,7 @@ impl DeviceCtx for DeviceCtxImpl {
                 Err(e) => {
                     match e {
                         Error::NotSupported => {}
-                        _=> {return Err(e)}
+                        _ => { return Err(e); }
                     }
                 }
             };
@@ -214,8 +216,6 @@ impl DeviceCtx for DeviceCtxImpl {
             opened.handle.set_configuration(config_value)?;
             Ok(())
         })
-
-
     }
 
     fn serial_number(&self) -> Result<String> {
@@ -326,6 +326,56 @@ impl DeviceCtx for DeviceCtxImpl {
         })
     }
 
+    fn iso_transfer_in(&self, endpoint: u8, num_iso_packages: usize, package_capacity: usize, timeout: Duration) -> AsyncResult<Vec<Vec<u8>>> {
+        async_opened!(self, dev, handle, {
+            open_endpoint(endpoint, &dev, &handle)?;
+
+            let tran = handle.iso_transfer(
+                TransferDirection::In { len: num_iso_packages * package_capacity },
+                endpoint, num_iso_packages,timeout).await?;
+
+            let mut packs = Vec::with_capacity(num_iso_packages);
+
+            unsafe{
+                let packs_raw = &*slice_from_raw_parts((*tran.ptr).iso_packet_desc.as_ptr(), num_iso_packages);
+                let mut begin = 0;
+                for raw in packs_raw{
+                    status_to_result(raw.status)?;
+                    packs.push(tran.data[begin.. begin + raw.actual_length as usize].to_vec());
+                    begin += raw.length as usize;
+                }
+            }
+            Ok(packs)
+        })
+    }
+
+    fn iso_transfer_out(&self, endpoint: u8, mut packs: Vec<Vec<u8>>, timeout: Duration) -> AsyncResult<Vec<usize>> {
+        async_opened!(self, dev, handle, {
+            open_endpoint(endpoint, &dev, &handle)?;
+            let mut out = vec![0usize; packs.len()];
+            let pack_lens: Vec<_> = packs.iter().map(|o|o.len()).collect();
+            let num_iso_packets = pack_lens.len();
+            let mut data = vec![];
+            while let Some(mut o) = packs.pop(){
+                data.append(&mut o);
+            }
+            unsafe {
+                let tran = Transfer::iso_transfer(endpoint, num_iso_packets as _, sync_cb,  TransferDirection::Out{ data  }, timeout);
+                let mut packs_raw = &mut*slice_from_raw_parts_mut((*tran.ptr).iso_packet_desc.as_mut_ptr(), num_iso_packets);
+                for (i,raw) in packs_raw.iter_mut().enumerate(){
+                    raw.length = pack_lens[i] as _;
+                }
+                let tran_new =  handle.do_sync_transfer(tran).await?;
+                packs_raw = &mut*slice_from_raw_parts_mut((*tran_new.ptr).iso_packet_desc.as_mut_ptr(), num_iso_packets);
+                 for (i,raw) in packs_raw.iter_mut().enumerate(){
+                    out[i] = raw.actual_length as _;
+                }
+            }
+            Ok(out)
+        })
+    }
+
+
     fn bulk_transfer_pip_in(&self, endpoint: u8, pip_config: PipConfig) -> Result<EndpointPipInImpl> {
         let handle = open(&self.dev, &self.opened)?;
         self.open_endpoint(endpoint)?;
@@ -340,6 +390,7 @@ unsafe impl Send for Device {}
 
 unsafe impl Sync for Device {}
 
+#[allow(unused)]
 impl Device {
     pub fn open(&self) -> Result<DeviceHandle> {
         unsafe {
@@ -407,7 +458,7 @@ impl Device {
         }
     }
 
-    pub fn get_config_descriptor(&self, index: u8, handle: Option<&DeviceHandle>)->Result<ConfigDescriptor>{
+    pub fn get_config_descriptor(&self, index: u8, handle: Option<&DeviceHandle>) -> Result<ConfigDescriptor> {
         let speed = self.speed()?;
         unsafe {
             let mut raw = null();

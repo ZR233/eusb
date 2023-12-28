@@ -128,4 +128,8 @@ impl UsbDevice {
     ) -> Result<usize> {
         self.ctx.interrupt_transfer_out(endpoint, data, timeout).await
     }
+
+    pub async fn iso_transfer_in(&self, endpoint: u8, num_iso_packages: usize, package_capacity: usize, timeout: Duration) -> Result<Vec<Vec<u8>>>{
+        self.ctx.iso_transfer_in(endpoint, num_iso_packages, package_capacity, timeout).await
+    }
 }

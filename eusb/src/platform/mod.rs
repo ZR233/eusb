@@ -37,6 +37,8 @@ pub(crate) trait DeviceCtx {
     fn bulk_transfer_out(&self, endpoint: u8, data: &[u8], timeout: Duration)->AsyncResult<usize>;
     fn interrupt_transfer_in(&self, endpoint: u8, capacity: usize, timeout: Duration) ->AsyncResult<Vec<u8>>;
     fn interrupt_transfer_out(&self, endpoint: u8, data: &[u8], timeout: Duration)->AsyncResult<usize>;
+    fn iso_transfer_in(&self, endpoint: u8, num_iso_packages: usize, package_capacity: usize, timeout: Duration) ->AsyncResult<Vec<Vec<u8>>>;
+    fn iso_transfer_out(&self, endpoint: u8, packs: Vec<Vec<u8>>, timeout: Duration)->AsyncResult<Vec<usize>>;
     fn bulk_transfer_pip_in(&self, endpoint: u8, pip_config: PipConfig)->Result<EndpointPipInImpl>;
 }
 

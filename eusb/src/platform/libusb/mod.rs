@@ -2,6 +2,7 @@ use std::ffi::{c_int, c_uchar};
 use std::ptr::slice_from_raw_parts;
 use libusb_src::*;
 use crate::define::*;
+use crate::error::Error;
 use crate::platform::libusb::device_handle::DeviceHandle;
 
 pub(crate) mod context;
@@ -203,5 +204,17 @@ impl ToLib for UsbControlRecipient {
             | UsbControlRecipient::SpecifiedInterface => LIBUSB_RECIPIENT_INTERFACE,
         };
         t
+    }
+}
+
+pub(crate) fn status_to_result(status: c_int)-> crate::error::Result {
+    match status {
+        LIBUSB_TRANSFER_COMPLETED => Ok(()),
+        LIBUSB_TRANSFER_OVERFLOW => Err(Error::Overflow),
+        LIBUSB_TRANSFER_TIMED_OUT => Err(Error::Timeout),
+        LIBUSB_TRANSFER_CANCELLED => Err(Error::Cancelled),
+        LIBUSB_TRANSFER_STALL => Err(Error::NotSupported),
+        LIBUSB_TRANSFER_NO_DEVICE => Err(Error::NoDevice),
+        _ => Err(Error::Other("Unknown".to_string())),
     }
 }
