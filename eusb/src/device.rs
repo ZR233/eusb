@@ -32,10 +32,15 @@ impl From<DeviceCtxImpl> for UsbDevice {
 
 #[allow(unused)]
 impl UsbDevice {
+
+
+    #[cfg(not(target_os = "android"))]
     pub fn list() -> Result<Vec<UsbDevice>> {
         let manager = Manager::get();
         manager.device_list()
     }
+
+    #[cfg(not(target_os = "android"))]
     pub fn open_with_vid_pid(vid: u16, pid: u16) -> Result<UsbDevice> {
         let manager = Manager::get();
         manager.open_device_with_vid_pid(vid, pid)

@@ -1,5 +1,3 @@
-
-
 use std::ptr::{null_mut, slice_from_raw_parts};
 use log::debug;
 use crate::error::*;
@@ -20,6 +18,10 @@ impl Context {
     pub(crate) fn new() -> Self {
         unsafe {
             let mut ptr = null_mut();
+
+            #[cfg(target_os = "android")]
+            check_err( libusb_set_option(ptr, LIBUSB_OPTION_NO_DEVICE_DISCOVERY)).unwrap();
+
             check_err(libusb_init(&mut ptr)).unwrap();
             debug!("libusb_init");
             Self(ptr)
