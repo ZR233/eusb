@@ -28,7 +28,7 @@ path = "device.rs"
 
 
 [dependencies]
-eusb = {    path = "../eusb", version = "0"   }
+eusb = {    path = "../eusb", version = "1"   }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 log = "0.4"

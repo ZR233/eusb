@@ -158,15 +158,17 @@ pub struct ConfigDescriptor {
 
 #[derive(Clone)]
 pub struct PipConfig{
-    pub pip_size: usize,
+    pub cache_size: usize,
     pub package_size: usize,
+    pub request_num: usize,
     pub timeout: Duration,
 }
 
 impl Default for PipConfig {
     fn default() -> Self {
         Self{
-            pip_size: 4,
+            cache_size: 64,
+            request_num: 4,
             package_size:0,
             timeout: Default::default(),
         }

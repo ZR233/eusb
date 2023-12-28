@@ -1,6 +1,7 @@
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use log::{debug};
+use thread_priority::{ThreadBuilderExt, ThreadPriority};
 use crate::device::UsbDevice;
 use crate::platform::libusb::context::Context;
 use crate::platform::{DeviceCtxImpl, ManagerCtx};
@@ -86,7 +87,12 @@ fn work_event(
     event: Arc<Mutex<EventControllerCtx>>,
     cond: Arc<Condvar>,
 ) -> JoinHandle<()> {
-    std::thread::spawn(move || {
+    std::thread::Builder::new()
+        .name("USB main event".into()).spawn_with_priority(ThreadPriority::Max, move |result| {
+        if result.is_err() {
+            println!("Set priority result fail: {:?}", result);
+        }
+
         let p = ctx;
         let mut ctx = {
             *event.lock().unwrap()
@@ -103,8 +109,7 @@ fn work_event(
             }
         }
         p.exit();
-        debug!("event_finish");
-    })
+    }).unwrap()
 }
 
 #[derive(Clone, Debug, Copy)]

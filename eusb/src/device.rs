@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::time::Duration;
 use crate::define::*;
-use crate::endpoint::EndpointPipIn;
+use crate::endpoint::{EndpointPipIn};
 use crate::error::*;
 use crate::manager::Manager;
 use crate::platform::{DeviceCtx, DeviceCtxImpl};
@@ -45,36 +45,36 @@ impl UsbDevice {
         self.ctx.serial_number()
     }
 
-    pub fn product(&self)->Result<String>{
+    pub fn product(&self) -> Result<String> {
         let des = self.device_descriptor()?;
         self.ctx.get_string_ascii(des.iProduct)
     }
-    pub fn manufacturer(&self)->Result<String>{
+    pub fn manufacturer(&self) -> Result<String> {
         let des = self.device_descriptor()?;
         self.ctx.get_string_ascii(des.iManufacturer)
     }
-    pub fn bcd_usb_version(&self)->Result<Vec<u16>>{
+    pub fn bcd_usb_version(&self) -> Result<Vec<u16>> {
         let des = self.device_descriptor()?;
-        Ok( bcd_to_version(des.bcdUSB))
+        Ok(bcd_to_version(des.bcdUSB))
     }
 
-    pub  fn device_class(&self) -> Result<DeviceClass> {
+    pub fn device_class(&self) -> Result<DeviceClass> {
         self.ctx.device_class()
     }
-    pub fn config_list(&self)->Result<Vec<ConfigDescriptor>>{
+    pub fn config_list(&self) -> Result<Vec<ConfigDescriptor>> {
         self.ctx.config_list()
     }
 
-    pub  fn device_subclass(&self) -> Result<DeviceClass> {
+    pub fn device_subclass(&self) -> Result<DeviceClass> {
         self.ctx.device_subclass()
     }
 
-    pub  fn device_protocol(&self) ->  Result<DeviceClass> {
+    pub fn device_protocol(&self) -> Result<DeviceClass> {
         self.ctx.device_protocol()
     }
-    pub fn bcd_device_version(&self)->Result<Vec<u16>>{
+    pub fn bcd_device_version(&self) -> Result<Vec<u16>> {
         let des = self.device_descriptor()?;
-        Ok( bcd_to_version(des.bcdDevice))
+        Ok(bcd_to_version(des.bcdDevice))
     }
     pub fn device_descriptor(&self) -> Result<DeviceDescriptor> {
         self.ctx.device_descriptor()

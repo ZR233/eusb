@@ -24,3 +24,5 @@ pub(crate) fn check_err(r: c_int) -> Result<i32> {
         Err(e)
     }
 }
+
+

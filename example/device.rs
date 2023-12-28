@@ -1,4 +1,4 @@
-use log::{info, LevelFilter};
+use log::*;
 use eusb::prelude::*;
 
 #[tokio::main]

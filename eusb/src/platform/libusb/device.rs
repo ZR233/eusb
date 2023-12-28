@@ -7,7 +7,7 @@ use libusb_src::*;
 use crate::define::{ConfigDescriptor, ControlTransferRequest, DeviceClass, DeviceDescriptor, Direction, PipConfig, Speed};
 use crate::platform::libusb::{class_from_lib, config_descriptor_convert, ToLib};
 use crate::platform::libusb::device_handle::{DeviceHandle, TransferDirection};
-use crate::platform::libusb::endpoint::EndpointInImpl;
+use crate::platform::libusb::endpoint::EndpointPipInImpl;
 use crate::platform::libusb::errors::*;
 
 pub(crate) struct DeviceCtxImpl {
@@ -276,10 +276,10 @@ impl DeviceCtx for DeviceCtxImpl {
         })
     }
 
-    fn bulk_transfer_pip_in(&self, endpoint: u8, pip_config: PipConfig) -> Result<EndpointInImpl> {
+    fn bulk_transfer_pip_in(&self, endpoint: u8, pip_config: PipConfig) -> Result<EndpointPipInImpl> {
         let handle = open(&self.dev, &self.opened)?;
         self.open_endpoint(endpoint)?;
-        Ok(EndpointInImpl::new(&handle, endpoint, pip_config))
+        EndpointPipInImpl::new(&handle, endpoint, pip_config)
     }
 }
 

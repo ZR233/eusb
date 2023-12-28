@@ -11,29 +11,51 @@ The `eusb` crate provides easy way to communicate usb, with async fn.
 Test with device hackrf one.
 
 ```rust
-use log::{info, LevelFilter};
+use log::*;
 use eusb::prelude::*;
 
 #[tokio::main]
 async fn main() {
-    let _ = env_logger::builder().filter_level(LevelFilter::Debug).is_test(true).try_init();
+    let _ = env_logger::builder().filter_level(LevelFilter::Info).is_test(true).try_init();
 
-    let manager = UsbManager::init_default().unwrap();
-    let devices = manager.device_list().await.unwrap();
+    let devices = UsbDevice::list().unwrap();
     for device in devices {
-        let mut msg = "".to_string();
+        let mut product = "".to_string();
+        let mut manufacturer = "".to_string();
 
+        if let Ok(s) = device.product() {product=s};
+        if let Ok(s) = device.manufacturer() {manufacturer=s};
 
-        let sn = match device.serial_number().await {
+        let sn = match device.serial_number() {
             Ok(s) => { s }
             Err(_) => { "没有权限，无法获取部分信息".to_string() }
         };
-        msg = format!(r"
+
+        let bcd_usb = device.bcd_usb_version().unwrap();
+        let bcd_device = device.bcd_device_version().unwrap();
+        let des = device.device_descriptor().unwrap();
+        let mut msg = format!(r"
 Device:
-  pid: {}
-  vid: {}
+  pid: 0x{:04X}
+  vid: 0x{:04X}
   sn: {}
-", device.pid(), device.vid(), sn);
+  bcd usb: {}.{}
+  bcd device: {}.{}
+  class: {:?}
+  subclass: {:?}
+  protocol: {:?}
+  manufacturer: {}
+  product: {}
+",
+                              des.idProduct,
+                              des.idVendor,
+                              sn,
+                              bcd_usb[1],bcd_usb[2],
+                              bcd_device[1],bcd_device[2],
+                              device.device_class().unwrap(),
+                              device.device_subclass().unwrap(),
+                              device.device_protocol().unwrap(),
+                              manufacturer, product);
         let cfg_list = device.config_list().unwrap();
         for cfg in &cfg_list {
             msg += format!(r"
@@ -87,5 +109,6 @@ Device:
         info!("{}", msg)
     }
 }
+
 
 ```

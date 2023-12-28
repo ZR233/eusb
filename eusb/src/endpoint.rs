@@ -1,14 +1,20 @@
-use crate::platform::EndpointInImpl;
+use crate::platform::{EndpointPipInInner, EndpointPipInImpl};
 
 pub struct EndpointPipIn {
-    inner: EndpointInImpl
+    inner: EndpointPipInImpl
 }
 
-impl From<EndpointInImpl> for EndpointPipIn {
-    fn from(value: EndpointInImpl) -> Self {
+impl From<EndpointPipInImpl> for EndpointPipIn {
+    fn from(value: EndpointPipInImpl) -> Self {
         Self{
             inner: value
         }
+    }
+}
+
+impl EndpointPipIn {
+    pub async fn next(&mut self) ->Option<Vec<u8>>{
+       self.inner.next().await
     }
 }
 

@@ -1,6 +1,7 @@
 use std::ffi::c_void;
 use std::ptr::{null_mut, slice_from_raw_parts_mut};
 use std::time::Duration;
+use log::{trace};
 use libusb_src::*;
 use super::errors::*;
 
@@ -126,7 +127,17 @@ impl Transfer {
 
     pub fn result(&self) -> Result {
         unsafe {
-            match (*self.ptr).status {
+            (*self.ptr).to_result()
+        }
+    }
+}
+pub(crate) trait ToResult{
+    fn to_result(&self)->Result;
+}
+
+impl ToResult for libusb_transfer {
+    fn to_result(&self) -> Result {
+            match self.status {
                 LIBUSB_TRANSFER_COMPLETED => Ok(()),
                 LIBUSB_TRANSFER_OVERFLOW => Err(Error::Overflow),
                 LIBUSB_TRANSFER_TIMED_OUT => Err(Error::Timeout),
@@ -135,15 +146,16 @@ impl Transfer {
                 LIBUSB_TRANSFER_NO_DEVICE => Err(Error::NoDevice),
                 _ => Err(Error::Other("Unknown".to_string())),
             }
-        }
     }
 }
+
 
 
 impl Drop for Transfer {
     fn drop(&mut self) {
         unsafe {
             libusb_free_transfer(self.ptr);
+            trace!("transfer free");
         }
     }
 }

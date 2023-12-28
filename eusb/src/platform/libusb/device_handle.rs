@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
-use log::debug;
+use log::{debug, trace};
 use libusb_src::*;
 use crate::manager::Manager;
 use crate::platform::libusb::device::Device;
@@ -56,11 +56,11 @@ impl DeviceHandle {
                 }
             }
 
-            debug!("claim interface [{:3}] begin", interface_number);
+            trace!("claim interface [{:3}] begin", interface_number);
             check_err(libusb_claim_interface(self.ptr, interface_number as _))?;
             let mut g = self.claimed.write().unwrap();
             g.insert(interface_number);
-            debug!("claim interface [{:3}] ok", interface_number);
+            debug!("claim interface [{:3}]", interface_number);
             Ok(())
         }
     }
