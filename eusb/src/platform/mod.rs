@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 use crate::error::*;
 use crate::device::UsbDevice;
@@ -27,7 +28,7 @@ pub(crate) trait DeviceCtx {
     fn device_class(&self) -> Result<DeviceClass>;
     fn device_subclass(&self) -> Result<DeviceClass>;
     fn device_protocol(&self) -> Result<DeviceClass>;
-
+    fn config_list(&self) -> Result<Vec<ConfigDescriptor>>;
     fn serial_number(&self) -> Result<String>;
     fn bus_number(&self) -> u8;
     fn device_address(&self) -> u8;

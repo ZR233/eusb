@@ -84,6 +84,12 @@ impl DeviceCtxImpl {
             f(dev, handle).await
         }
     }
+
+    fn get_configuration_descriptor(&self, index: u8) -> Result<ConfigDescriptor> {
+        let g = self.opened.lock().unwrap();
+        let handle = g.as_ref().map(|o| o.handle.as_ref());
+        self.dev.get_config_descriptor(index, handle)
+    }
 }
 
 fn open(dev: &Arc<Device>, opened: &Arc<Mutex<Option<OpenedDevice>>>) -> Result<Arc<DeviceHandle>> {
@@ -150,6 +156,16 @@ impl DeviceCtx for DeviceCtxImpl {
 
     fn device_protocol(&self) -> Result<DeviceClass> {
         Ok( class_from_lib(self.device_descriptor()?.bDeviceProtocol))
+    }
+
+    fn config_list(&self) -> Result<Vec<ConfigDescriptor>> {
+        let des = self.device_descriptor()?;
+        let g = self.opened.lock().unwrap();
+        let handle = g.as_ref().map(|o| o.handle.as_ref());
+
+        Ok((0..des.bNumConfigurations).map(|i|{
+            self.dev.get_config_descriptor(i, handle).unwrap()
+        }).collect())
     }
 
     fn serial_number(&self) -> Result<String> {
@@ -335,6 +351,17 @@ impl Device {
         unsafe {
             let mut raw = null();
             check_err(libusb_get_active_config_descriptor(self.0, &mut raw))?;
+            let cfg = config_descriptor_convert(raw, handle, speed);
+            libusb_free_config_descriptor(raw);
+            Ok(cfg)
+        }
+    }
+
+    pub fn get_config_descriptor(&self, index: u8, handle: Option<&DeviceHandle>)->Result<ConfigDescriptor>{
+        let speed = self.speed()?;
+        unsafe {
+            let mut raw = null();
+            check_err(libusb_get_config_descriptor(self.0, index, &mut raw))?;
             let cfg = config_descriptor_convert(raw, handle, speed);
             libusb_free_config_descriptor(raw);
             Ok(cfg)

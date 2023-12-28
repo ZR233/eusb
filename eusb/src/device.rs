@@ -61,7 +61,9 @@ impl UsbDevice {
     pub  fn device_class(&self) -> Result<DeviceClass> {
         self.ctx.device_class()
     }
-
+    pub fn config_list(&self)->Result<Vec<ConfigDescriptor>>{
+        self.ctx.config_list()
+    }
 
     pub  fn device_subclass(&self) -> Result<DeviceClass> {
         self.ctx.device_subclass()
