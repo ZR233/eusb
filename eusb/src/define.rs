@@ -130,6 +130,7 @@ pub enum  DeviceClass{
     Wireless,
     VendorSpec,
     Application,
+    Unknown
 }
 
 

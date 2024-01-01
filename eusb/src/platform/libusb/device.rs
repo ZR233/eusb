@@ -164,10 +164,13 @@ impl DeviceCtx for DeviceCtxImpl {
         let des = self.device_descriptor()?;
         let g = self.opened.lock().unwrap();
         let handle = g.as_ref().map(|o| o.handle.as_ref());
+        let mut out = Vec::with_capacity(des.bNumConfigurations as usize);
+        for i in 0..des.bNumConfigurations{
+            let elem = self.dev.get_config_descriptor(i, handle)?;
+            out.push(elem);
+        }
 
-        Ok((0..des.bNumConfigurations).map(|i| {
-            self.dev.get_config_descriptor(i, handle).unwrap()
-        }).collect())
+        Ok(out)
     }
 
     fn set_config_by_value(&self, config_value: u8) -> Result {

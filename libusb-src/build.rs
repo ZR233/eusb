@@ -105,14 +105,7 @@ fn main(){
     let version = get_libusb_version(&libusb_src);
 
     println!("cargo:warning=version: {}", version);
-
-    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
-    let dep_dir = out_dir.parent().unwrap().parent().unwrap().parent().unwrap().join("deps");
- 
-    c.compile("usb1.0");
-   fs::copy(out_dir.join("libusb1.0.a"), dep_dir.join("libusb1.0.a")).unwrap();
-    fs::copy(out_dir.join("usb1.0.lib"), dep_dir.join("usb1.0.lib")).unwrap();
-
+    c.compile("usb");
 }
 
 fn get_libusb_version_one(src: &str, e: &str)->i32{

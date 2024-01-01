@@ -12,10 +12,15 @@ async fn main() {
 
         if let Ok(s) = device.product() {product=s};
         if let Ok(s) = device.manufacturer() {manufacturer=s};
+        let has_permission;
 
         let sn = match device.serial_number() {
-            Ok(s) => { s }
-            Err(_) => { "没有权限，无法获取部分信息".to_string() }
+            Ok(s) => {
+                has_permission =true;
+                s }
+            Err(_) => {
+                has_permission =false;
+                "没有权限，无法获取部分信息".to_string() }
         };
 
         let bcd_usb = device.bcd_usb_version().unwrap();
@@ -43,19 +48,20 @@ Device:
                       device.device_subclass().unwrap(),
                       device.device_protocol().unwrap(),
                       manufacturer, product);
-        let cfg_list = device.config_list().unwrap();
-        for cfg in &cfg_list {
-            msg += format!(r"
+        if has_permission {
+            let cfg_list = device.config_list().unwrap();
+            for cfg in &cfg_list {
+                msg += format!(r"
   Configuration [{}]:
     Value {}
     MaxPower {} mA
     Extra {:?}
            ", cfg.configuration, cfg.value, cfg.max_power,cfg.extra).as_str();
 
-            for alts in &cfg.interfaces {
-                let interface = &alts.alt_settings[0];
+                for alts in &cfg.interfaces {
+                    let interface = &alts.alt_settings[0];
 
-                msg += format!(r"
+                    msg += format!(r"
     Interface [{}]:
       Alternate Setting {}
       Class: {:?}
@@ -63,17 +69,17 @@ Device:
       Protocol {:?}
       Extra: {:?}
                 ",
-                               interface.interface,
-                               interface.alt_setting,
-                               interface.device_class,
-                               interface.device_sub_class,
-                               interface.protocol,
-                               interface.extra
-                ).as_str();
+                                   interface.interface,
+                                   interface.alt_setting,
+                                   interface.device_class,
+                                   interface.device_sub_class,
+                                   interface.protocol,
+                                   interface.extra
+                    ).as_str();
 
 
-                for endpoint in &interface.endpoints {
-                    msg += format!(r"
+                    for endpoint in &interface.endpoints {
+                        msg += format!(r"
       Endpoint [{}]:
         Direction {:?}
         Transfer Type: {:?}
@@ -81,16 +87,19 @@ Device:
         Sync Type {:?}
         Extra: {:?}
                 ",
-                                   endpoint.num,
-                                   endpoint.direction,
-                                   endpoint.transfer_type,
-                                   endpoint.usage_type,
-                                   endpoint.sync_type,
-                                   endpoint.extra
-                    ).as_str();
+                                       endpoint.num,
+                                       endpoint.direction,
+                                       endpoint.transfer_type,
+                                       endpoint.usage_type,
+                                       endpoint.sync_type,
+                                       endpoint.extra
+                        ).as_str();
+                    }
                 }
             }
         }
+
+
 
 
         info!("{}", msg)

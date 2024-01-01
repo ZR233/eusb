@@ -163,7 +163,7 @@ pub(crate) fn class_from_lib(class: u8)->DeviceClass{
         LIBUSB_CLASS_WIRELESS => DeviceClass::Wireless,
         LIBUSB_CLASS_APPLICATION => DeviceClass::Application,
         LIBUSB_CLASS_VENDOR_SPEC => DeviceClass::VendorSpec,
-        _ => panic!("Unknown class: {}", class)
+        _ =>DeviceClass::Unknown,
     }
 }
 
