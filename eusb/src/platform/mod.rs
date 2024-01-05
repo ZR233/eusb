@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
-use futures::future::LocalBoxFuture;
+use futures::future::{BoxFuture, LocalBoxFuture};
 use crate::error::*;
 use crate::device::UsbDevice;
 use crate::define::*;
@@ -18,7 +18,7 @@ pub(crate) use libusb::{device::DeviceCtxImpl, manager::ManagerCtxImpl, endpoint
 type AsyncResult<T=()> =  Pin<Box<dyn Future<Output=Result<T>>>>;
 
 pub(crate) trait EndpointPipInInner {
-    fn next(&mut self)-> LocalBoxFuture<Option<Vec<u8>>>;
+    fn next(&mut self)-> BoxFuture<Option<Vec<u8>>>;
 }
 
 pub(crate) trait DeviceCtx {

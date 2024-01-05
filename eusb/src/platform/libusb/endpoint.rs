@@ -7,7 +7,7 @@ use crate::platform::libusb::device_handle::{DeviceHandle, TransferDirection};
 use crate::platform::libusb::transfer::{ToResult, Transfer};
 use futures::channel::mpsc::{channel, Receiver, Sender};
 use futures::{FutureExt, StreamExt};
-use futures::future::LocalBoxFuture;
+use futures::future::{BoxFuture, LocalBoxFuture};
 use log::{trace, warn};
 use super::errors::*;
 use crate::platform::EndpointPipInInner;
@@ -69,8 +69,8 @@ impl EndpointPipInImpl {
 
 
 impl EndpointPipInInner for EndpointPipInImpl {
-    fn next(&mut self) -> LocalBoxFuture<Option<Vec<u8>>> {
-        self.rx.next().boxed_local()
+    fn next(&mut self) -> BoxFuture<Option<Vec<u8>>> {
+        self.rx.next().boxed()
     }
 }
 
